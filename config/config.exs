@@ -3,10 +3,6 @@ import Config
 config :knowledge_index,
   ecto_repos: [KnowledgeIndex.Repo]
 
-# Placeholder — overridden by runtime.exs in prod
-config :knowledge_index, KnowledgeIndex.Repo,
-  database: "knowledge_index"
-
 config :knowledge_index, KnowledgeIndexWeb.Endpoint,
   url: [host: "localhost"],
   render_errors: [formats: [json: KnowledgeIndexWeb.ErrorJSON]],

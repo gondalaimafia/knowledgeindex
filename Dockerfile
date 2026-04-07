@@ -1,4 +1,4 @@
-FROM elixir:1.16-otp-26-slim AS builder
+FROM elixir:1.18-otp-27-slim AS builder
 
 # Install build deps
 RUN apt-get update -y && apt-get install -y build-essential git \
@@ -48,5 +48,5 @@ COPY --from=builder --chown=nobody:root /app/_build/prod/rel/knowledge_index ./
 
 USER nobody
 
-# Run migrations then start
-CMD /app/bin/knowledge_index eval "KnowledgeIndex.Release.migrate" && /app/bin/knowledge_index start
+# Migrations run on app boot via Application.start
+CMD ["/app/bin/knowledge_index", "start"]

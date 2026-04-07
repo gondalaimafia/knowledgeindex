@@ -1,8 +1,13 @@
 defmodule KnowledgeIndex.Application do
   use Application
 
+  require Logger
+
   @impl true
   def start(_type, _args) do
+    # Run migrations on boot (before starting supervision tree)
+    migrate()
+
     children = [
       # Database
       KnowledgeIndex.Repo,
@@ -34,5 +39,14 @@ defmodule KnowledgeIndex.Application do
         query: 5        # async query answer filing
       ]
     ]
+  end
+
+  defp migrate do
+    Logger.info("[KnowledgeIndex] Running migrations...")
+    {:ok, _, _} = Ecto.Migrator.with_repo(KnowledgeIndex.Repo, &Ecto.Migrator.run(&1, :up, all: true))
+    Logger.info("[KnowledgeIndex] Migrations complete")
+  rescue
+    e ->
+      Logger.warning("[KnowledgeIndex] Migration failed: #{inspect(e)} — continuing anyway")
   end
 end
