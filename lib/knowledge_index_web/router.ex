@@ -5,6 +5,16 @@ defmodule KnowledgeIndexWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :browser do
+    plug :accepts, ["html"]
+  end
+
+  scope "/", KnowledgeIndexWeb do
+    pipe_through :browser
+
+    get "/", DashboardController, :index
+  end
+
   scope "/api", KnowledgeIndexWeb do
     pipe_through :api
 
@@ -14,5 +24,7 @@ defmodule KnowledgeIndexWeb.Router do
     get "/index", KIController, :index
     post "/lint", KIController, :lint
     get "/health", KIController, :health
+    get "/stats", KIController, :stats
+    get "/logs", KIController, :logs
   end
 end

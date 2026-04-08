@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge Index</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #111111;
+      --surface: #1E1E1E;
+      --surface-raised: #242424;
+      --border: #2A2A2A;
+      --border-high: #3A3A3A;
+      --text: #FFFFFF;
+      --text-secondary: #8A8A8A;
+      --text-tertiary: #4A4A4A;
+      --teal: #01696F;
+      --teal-bright: #01969E;
+      --teal-dim: rgba(1, 105, 111, 0.15);
+      --destructive: #EF4444;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --info: #3B82F6;
+      --radius: 6px;
+      --font-sans: 'Space Grotesk', system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+      --sidebar-w: 240px;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 14px;
+      line-height: 1.5;
+      display: flex;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      z-index: 10;
+    }
+
+    .sidebar-header {
+      padding: 20px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sidebar-logo svg { color: var(--teal-bright); }
+
+    .sidebar-logo span {
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: -0.01em;
+    }
+
+    .sidebar-nav { padding: 12px 8px; flex: 1; }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+
+    .nav-item:hover { background: var(--surface-raised); color: var(--text); }
+    .nav-item.active {
+      background: var(--teal-dim);
+      color: var(--teal-bright);
+      border-left: 2px solid var(--teal-bright);
+      padding-left: 10px;
+    }
+    .nav-item i { width: 18px; height: 18px; }
+
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    .sidebar-footer a { color: var(--teal); text-decoration: none; }
+
+    /* Main */
+    .main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      padding: 32px;
+      max-width: 960px;
+    }
+
+    /* Section header - brand signature */
+    .section-header {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+    }
+    .section-header .slash { color: var(--teal-bright); }
+
+    .page-title {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      letter-spacing: -0.01em;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .card:hover { border-color: var(--border-high); }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--teal-bright);
+      line-height: 1;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .stat-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius);
+      background: var(--teal-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+      color: var(--teal-bright);
+    }
+
+    /* Table */
+    .table-wrap {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-tertiary);
+      text-align: left;
+      padding: 10px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 10px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface-raised); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-entity { background: var(--teal-dim); color: var(--teal-bright); }
+    .badge-concept { background: rgba(59,130,246,0.15); color: var(--info); }
+    .badge-decision { background: rgba(16,185,129,0.15); color: var(--success); }
+    .badge-synthesis { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .badge-source { background: rgba(138,138,138,0.15); color: var(--text-secondary); }
+    .badge-outcome { background: rgba(139,92,246,0.15); color: #8B5CF6; }
+    .badge-contradiction { background: rgba(239,68,68,0.15); color: var(--destructive); }
+
+    /* Search */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 24px;
+    }
+
+    .search-wrap input {
+      width: 100%;
+      padding: 10px 12px 10px 40px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .search-wrap input:focus { border-color: var(--teal); }
+    .search-wrap input::placeholder { color: var(--text-tertiary); }
+
+    .search-wrap .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-tertiary);
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s;
+    }
+
+    .btn-primary { background: var(--teal); color: #fff; }
+    .btn-primary:hover { background: var(--teal-bright); }
+    .btn-ghost { background: none; color: var(--text-secondary); }
+    .btn-ghost:hover { background: var(--surface-raised); color: var(--text); }
+
+    /* Log entries */
+    .log-entry {
+      display: flex;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .log-entry:last-child { border-bottom: none; }
+
+    .log-time {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      min-width: 140px;
+    }
+
+    .log-op {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--teal-bright);
+      min-width: 80px;
+    }
+
+    .log-label { color: var(--text); }
+    .log-detail { color: var(--text-secondary); font-size: 12px; }
+
+    /* Workspace selector */
+    .ws-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 24px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .ws-input label { white-space: nowrap; }
+
+    .ws-input input {
+      padding: 6px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--teal-bright);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      outline: none;
+      width: 240px;
+    }
+
+    .ws-input input:focus { border-color: var(--teal); }
+
+    /* Empty state */
+    .empty {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-tertiary);
+    }
+
+    .empty i { margin-bottom: 12px; opacity: 0.4; }
+
+    /* Health */
+    .health-ok { color: var(--success); }
+    .health-warn { color: var(--warning); }
+    .health-err { color: var(--destructive); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .main { margin-left: 0; padding: 16px; }
+      .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    /* Hide views */
+    .view { display: none; }
+    .view.active { display: block; }
+  </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">
+      <i data-lucide="database" style="width:20px;height:20px"></i>
+      <span>Knowledge Index</span>
+    </div>
+  </div>
+  <div class="sidebar-nav">
+    <button class="nav-item active" onclick="navigate('dashboard')" data-nav="dashboard">
+      <i data-lucide="layout-dashboard"></i> Dashboard
+    </button>
+    <button class="nav-item" onclick="navigate('pages')" data-nav="pages">
+      <i data-lucide="file-text"></i> Wiki Pages
+    </button>
+    <button class="nav-item" onclick="navigate('search')" data-nav="search">
+      <i data-lucide="search"></i> Search
+    </button>
+    <button class="nav-item" onclick="navigate('logs')" data-nav="logs">
+      <i data-lucide="scroll-text"></i> Logs
+    </button>
+    <button class="nav-item" onclick="navigate('health')" data-nav="health">
+      <i data-lucide="heart-pulse"></i> Health
+    </button>
+  </div>
+  <div class="sidebar-footer">
+    <a href="https://productconsole.ai">productconsole.ai</a><br>
+    Knowledge Index v1.0
+  </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main">
+  <!-- Workspace selector -->
+  <div class="ws-input">
+    <label>workspace_id:</label>
+    <input type="text" id="ws-id" value="default" onchange="refreshAll()">
+  </div>
+
+  <!-- Dashboard View -->
+  <div id="view-dashboard" class="view active">
+    <div class="section-header"><span class="slash">//</span> DASHBOARD</div>
+    <h1 class="page-title">Knowledge Index Overview</h1>
+
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="file-text" style="width:16px;height:16px"></i></div>
+        <div class="stat-value" id="stat-pages">--</div>
+        <div class="stat-label">Wiki Pages</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="upload" style="width:16px;height:16px"></i></div>
+        <div class="stat-value" id="stat-sources">--</div>
+        <div class="stat-label">Sources Ingested</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="alert-triangle" style="width:16px;height:16px"></i></div>
+        <div class="stat-value" id="stat-stale">--</div>
+        <div class="stat-label">Stale Pages</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="heart-pulse" style="width:16px;height:16px"></i></div>
+        <div class="stat-value health-ok" id="stat-health">--</div>
+        <div class="stat-label">Service Status</div>
+      </div>
+    </div>
+
+    <div class="section-header"><span class="slash">//</span> RECENT ACTIVITY</div>
+    <div class="card" id="dashboard-logs">
+      <div class="empty"><i data-lucide="scroll-text" style="width:24px;height:24px"></i><p>Loading logs...</p></div>
+    </div>
+  </div>
+
+  <!-- Wiki Pages View -->
+  <div id="view-pages" class="view">
+    <div class="section-header"><span class="slash">//</span> WIKI PAGES</div>
+    <h1 class="page-title">All Wiki Pages</h1>
+    <div id="pages-content">
+      <div class="empty"><i data-lucide="loader" style="width:24px;height:24px"></i><p>Loading...</p></div>
+    </div>
+  </div>
+
+  <!-- Search View -->
+  <div id="view-search" class="view">
+    <div class="section-header"><span class="slash">//</span> SEARCH</div>
+    <h1 class="page-title">Search Knowledge Wiki</h1>
+    <div class="search-wrap">
+      <i data-lucide="search" class="search-icon"></i>
+      <input type="text" id="search-input" placeholder="Search wiki pages..." oninput="debounceSearch()">
+    </div>
+    <div id="search-results">
+      <div class="empty"><p>Type to search across all wiki pages.</p></div>
+    </div>
+  </div>
+
+  <!-- Logs View -->
+  <div id="view-logs" class="view">
+    <div class="section-header"><span class="slash">//</span> OPERATION LOG</div>
+    <h1 class="page-title">Logs</h1>
+    <div class="card" id="logs-content">
+      <div class="empty"><i data-lucide="scroll-text" style="width:24px;height:24px"></i><p>Loading...</p></div>
+    </div>
+  </div>
+
+  <!-- Health View -->
+  <div id="view-health" class="view">
+    <div class="section-header"><span class="slash">//</span> HEALTH CHECK</div>
+    <h1 class="page-title">System Health</h1>
+
+    <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="server" style="width:16px;height:16px"></i></div>
+        <div class="stat-value health-ok" id="health-api">--</div>
+        <div class="stat-label">API Server</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon"><i data-lucide="database" style="width:16px;height:16px"></i></div>
+        <div class="stat-value" id="health-pages">--</div>
+        <div class="stat-label">Wiki Pages</div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <button class="btn btn-primary" onclick="runLint()">
+        <i data-lucide="scan" style="width:14px;height:14px"></i> Run Lint Check
+      </button>
+      <span id="lint-status" style="margin-left:12px;font-size:12px;color:var(--text-secondary)"></span>
+    </div>
+  </div>
+</main>
+
+<script>
+  // Init Lucide icons
+  lucide.createIcons();
+
+  // State
+  let currentView = 'dashboard';
+  let searchTimeout;
+
+  function getWs() { return document.getElementById('ws-id').value || 'default'; }
+
+  // Navigation
+  function navigate(view) {
+    currentView = view;
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('view-' + view).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelector('[data-nav="' + view + '"]').classList.add('active');
+
+    if (view === 'dashboard') loadDashboard();
+    if (view === 'pages') loadPages();
+    if (view === 'logs') loadLogs();
+    if (view === 'health') loadHealth();
+
+    window.location.hash = view;
+    lucide.createIcons();
+  }
+
+  // API helpers
+  async function api(path) {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) throw new Error(res.statusText);
+      return await res.json();
+    } catch (e) {
+      console.error('API error:', path, e);
+      return null;
+    }
+  }
+
+  // Dashboard
+  async function loadDashboard() {
+    const ws = getWs();
+    const [stats, health, logs] = await Promise.all([
+      api('/api/stats?workspace_id=' + ws),
+      api('/api/health'),
+      api('/api/logs?workspace_id=' + ws + '&limit=5')
+    ]);
+
+    if (stats) {
+      document.getElementById('stat-pages').textContent = stats.page_count ?? 0;
+      document.getElementById('stat-sources').textContent = stats.source_count ?? 0;
+      document.getElementById('stat-stale').textContent = stats.stale_count ?? 0;
+    }
+
+    if (health) {
+      const el = document.getElementById('stat-health');
+      el.textContent = health.status === 'ok' ? 'OK' : 'ERR';
+      el.className = 'stat-value ' + (health.status === 'ok' ? 'health-ok' : 'health-err');
+    }
+
+    if (logs && logs.length > 0) {
+      document.getElementById('dashboard-logs').innerHTML = renderLogs(logs);
+    } else {
+      document.getElementById('dashboard-logs').innerHTML = '<div class="empty"><p>No activity yet. Ingest a document to get started.</p></div>';
+    }
+    lucide.createIcons();
+  }
+
+  // Pages
+  async function loadPages() {
+    const ws = getWs();
+    const data = await api('/api/index?workspace_id=' + ws);
+
+    if (!data || data.length === 0) {
+      document.getElementById('pages-content').innerHTML = '<div class="empty"><i data-lucide="brain" style="width:32px;height:32px"></i><p>No wiki pages yet. Ingest documents via the API.</p></div>';
+      lucide.createIcons();
+      return;
+    }
+
+    let html = '';
+    data.forEach(group => {
+      html += '<div class="section-header" style="margin-top:24px;margin-bottom:8px"><span class="slash">//</span> ' + group.category.toUpperCase() + ' <span style="color:var(--text-tertiary)">(' + group.pages.length + ')</span></div>';
+      html += '<div class="table-wrap"><table><thead><tr><th>Title</th><th>Summary</th></tr></thead><tbody>';
+      group.pages.forEach(p => {
+        const badge = '<span class="badge badge-' + (group.category === 'entities' ? 'entity' : group.category.slice(0,-1)) + '">' + (p.page_type || group.category) + '</span>';
+        html += '<tr><td style="font-weight:500">' + escHtml(p.title) + ' ' + badge + '</td><td style="color:var(--text-secondary);font-size:12px">' + escHtml(p.summary || '') + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    });
+
+    document.getElementById('pages-content').innerHTML = html;
+    lucide.createIcons();
+  }
+
+  // Search
+  function debounceSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(doSearch, 300);
+  }
+
+  async function doSearch() {
+    const q = document.getElementById('search-input').value.trim();
+    if (q.length < 2) {
+      document.getElementById('search-results').innerHTML = '<div class="empty"><p>Type at least 2 characters to search.</p></div>';
+      return;
+    }
+
+    const ws = getWs();
+    const results = await api('/api/search?workspace_id=' + ws + '&query=' + encodeURIComponent(q));
+
+    if (!results || results.length === 0) {
+      document.getElementById('search-results').innerHTML = '<div class="empty"><p>No results for "' + escHtml(q) + '"</p></div>';
+      return;
+    }
+
+    let html = '<div class="table-wrap"><table><thead><tr><th>Title</th><th>Type</th><th>Summary</th></tr></thead><tbody>';
+    results.forEach(r => {
+      const badgeClass = 'badge-' + (r.page_type || 'source').replace('_', '-');
+      html += '<tr><td style="font-weight:500">' + escHtml(r.title) + '</td><td><span class="badge ' + badgeClass + '">' + escHtml(r.page_type || '') + '</span></td><td style="color:var(--text-secondary);font-size:12px">' + escHtml(r.summary || '') + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+
+    document.getElementById('search-results').innerHTML = html;
+  }
+
+  // Logs
+  async function loadLogs() {
+    const ws = getWs();
+    const logs = await api('/api/logs?workspace_id=' + ws + '&limit=50');
+
+    if (!logs || logs.length === 0) {
+      document.getElementById('logs-content').innerHTML = '<div class="empty"><p>No log entries yet.</p></div>';
+      return;
+    }
+
+    document.getElementById('logs-content').innerHTML = renderLogs(logs);
+    lucide.createIcons();
+  }
+
+  function renderLogs(logs) {
+    return logs.map(l => {
+      const time = l.inserted_at ? new Date(l.inserted_at).toLocaleString() : '';
+      const detail = l.detail ? ' — ' + (typeof l.detail === 'object' ? JSON.stringify(l.detail) : l.detail) : '';
+      return '<div class="log-entry"><span class="log-time">' + time + '</span><span class="log-op">' + escHtml(l.operation || '') + '</span><span class="log-label">' + escHtml(l.label || '') + '<span class="log-detail">' + escHtml(detail) + '</span></span></div>';
+    }).join('');
+  }
+
+  // Health
+  async function loadHealth() {
+    const ws = getWs();
+    const [health, stats] = await Promise.all([
+      api('/api/health'),
+      api('/api/stats?workspace_id=' + ws)
+    ]);
+
+    if (health) {
+      const el = document.getElementById('health-api');
+      el.textContent = health.status === 'ok' ? 'OK' : 'ERROR';
+      el.className = 'stat-value ' + (health.status === 'ok' ? 'health-ok' : 'health-err');
+    }
+
+    if (stats) {
+      const el = document.getElementById('health-pages');
+      el.textContent = stats.page_count ?? 0;
+      if (stats.stale_count > 0) {
+        el.textContent += ' (' + stats.stale_count + ' stale)';
+        el.className = 'stat-value health-warn';
+      } else {
+        el.className = 'stat-value health-ok';
+      }
+    }
+    lucide.createIcons();
+  }
+
+  async function runLint() {
+    const ws = getWs();
+    const el = document.getElementById('lint-status');
+    el.textContent = 'Running lint...';
+    el.style.color = 'var(--teal-bright)';
+
+    try {
+      await fetch('/api/lint', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: ws })
+      });
+      el.textContent = 'Lint pass queued. Check logs for results.';
+      el.style.color = 'var(--success)';
+    } catch (e) {
+      el.textContent = 'Lint failed: ' + e.message;
+      el.style.color = 'var(--destructive)';
+    }
+  }
+
+  // Utilities
+  function escHtml(str) {
+    const d = document.createElement('div');
+    d.textContent = str;
+    return d.innerHTML;
+  }
+
+  function refreshAll() {
+    if (currentView === 'dashboard') loadDashboard();
+    if (currentView === 'pages') loadPages();
+    if (currentView === 'logs') loadLogs();
+    if (currentView === 'health') loadHealth();
+  }
+
+  // Hash routing
+  function initRoute() {
+    const hash = window.location.hash.replace('#', '') || 'dashboard';
+    navigate(hash);
+  }
+
+  window.addEventListener('hashchange', initRoute);
+  initRoute();
+</script>
+</body>
+</html>

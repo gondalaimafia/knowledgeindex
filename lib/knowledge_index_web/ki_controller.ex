@@ -87,4 +87,58 @@ defmodule KnowledgeIndexWeb.KIController do
     Oban.insert(Pipeline.Lint.new(%{"workspace_id" => ws}))
     json(conn, %{message: "Lint pass queued"})
   end
+
+  def stats(conn, %{"workspace_id" => ws}) do
+    import Ecto.Query
+
+    page_count = Repo.aggregate(
+      from(p in KnowledgeIndex.Schema.WikiPage, where: p.workspace_id == ^ws),
+      :count
+    )
+
+    source_count = Repo.aggregate(
+      from(s in RawSource, where: s.workspace_id == ^ws),
+      :count
+    )
+
+    stale_count = Repo.aggregate(
+      from(p in KnowledgeIndex.Schema.WikiPage, where: p.workspace_id == ^ws and p.stale == true),
+      :count
+    )
+
+    json(conn, %{
+      page_count: page_count,
+      source_count: source_count,
+      stale_count: stale_count
+    })
+  end
+
+  def logs(conn, %{"workspace_id" => ws} = params) do
+    import Ecto.Query
+
+    limit =
+      case Integer.parse(Map.get(params, "limit", "50")) do
+        {n, _} -> n
+        :error -> 50
+      end
+
+    logs =
+      from(l in KnowledgeIndex.Schema.LogEntry,
+        where: l.workspace_id == ^ws,
+        order_by: [desc: l.inserted_at],
+        limit: ^limit
+      )
+      |> Repo.all()
+      |> Enum.map(fn l ->
+        %{
+          id: l.id,
+          operation: l.operation,
+          label: l.label,
+          detail: l.detail,
+          inserted_at: l.inserted_at
+        }
+      end)
+
+    json(conn, logs)
+  end
 end
