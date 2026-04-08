@@ -37,19 +37,23 @@ defmodule KnowledgeIndex.MCP.Handler do
   end
 
   def call_tool("ki_search", %{"workspace_id" => ws, "query" => query} = args) do
-    limit = Map.get(args, "limit", 10)
+    limit = args |> Map.get("limit", 10) |> clamp_limit()
     page_type = Map.get(args, "page_type")
 
-    {:ok, results} = Pipeline.Query.search(ws, query, page_type: page_type, limit: limit)
+    case Pipeline.Query.search(ws, query, page_type: page_type, limit: limit) do
+      {:ok, results} ->
+        formatted =
+          results
+          |> Enum.map(fn page ->
+            "[[#{page.slug}]] **#{page.title}** (#{page.page_type})\n#{page.summary}"
+          end)
+          |> Enum.join("\n\n")
 
-    formatted =
-      results
-      |> Enum.map(fn page ->
-        "[[#{page.slug}]] **#{page.title}** (#{page.page_type})\n#{page.summary}"
-      end)
-      |> Enum.join("\n\n")
+        %{content: [%{type: "text", text: formatted}]}
 
-    %{content: [%{type: "text", text: formatted}]}
+      {:error, reason} ->
+        error_content("Search failed: #{inspect(reason)}")
+    end
   end
 
   def call_tool("ki_get_page", %{"workspace_id" => ws, "slug" => slug}) do
@@ -91,7 +95,7 @@ defmodule KnowledgeIndex.MCP.Handler do
   end
 
   def call_tool("ki_get_log", %{"workspace_id" => ws} = args) do
-    limit = Map.get(args, "limit", 20)
+    limit = args |> Map.get("limit", 20) |> clamp_limit()
     operation = Map.get(args, "operation")
 
     query =
@@ -140,4 +144,7 @@ defmodule KnowledgeIndex.MCP.Handler do
   defp error_content(message) do
     %{isError: true, content: [%{type: "text", text: message}]}
   end
+
+  defp clamp_limit(val) when is_integer(val), do: min(max(val, 1), 100)
+  defp clamp_limit(_), do: 10
 end

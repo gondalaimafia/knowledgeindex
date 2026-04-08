@@ -58,9 +58,9 @@ defmodule KnowledgeIndex.Pipeline.Lint do
     pages
     |> Enum.filter(fn page ->
       # No other page links to this one
-      page.slug not in [:index, :log] and
+      page.slug not in ["index", "log"] and
         not Enum.any?(pages, fn other ->
-          page.slug in other.outbound_links
+          other.slug != page.slug and page.slug in other.outbound_links
         end)
     end)
     |> Enum.map(& &1.slug)
@@ -157,22 +157,45 @@ defmodule KnowledgeIndex.Pipeline.Lint do
   end
 
   defp parse_lint_report(response, orphans, stale, missing_outcomes) do
+    empty_report = %{
+      contradictions: [], orphans: orphans, stale: stale,
+      missing_outcomes: missing_outcomes, missing_pages: [],
+      missing_links: [], suggestions: []
+    }
+
     case Jason.decode(response) do
-      {:ok, data} ->
-        {:ok, %{
-          contradictions: Map.get(data, "contradictions", []),
-          orphans: orphans,
-          stale: stale,
-          missing_outcomes: missing_outcomes,
-          missing_pages: Map.get(data, "missing_pages", []),
-          missing_links: Map.get(data, "missing_links", []),
-          suggestions: Map.get(data, "investigation_suggestions", [])
-        }}
-      {:error, _} ->
-        {:ok, %{contradictions: [], orphans: orphans, stale: stale,
-                missing_outcomes: missing_outcomes, missing_pages: [],
-                missing_links: [], suggestions: []}}
+      {:ok, data} when is_map(data) ->
+        {:ok, build_report(data, orphans, stale, missing_outcomes)}
+
+      _ ->
+        # Try to extract JSON from markdown fences or surrounding text
+        case Regex.run(~r/\{[\s\S]*?\}/m, response) do
+          [json | _] ->
+            case Jason.decode(json) do
+              {:ok, data} when is_map(data) ->
+                {:ok, build_report(data, orphans, stale, missing_outcomes)}
+              _ ->
+                Logger.warning("[Lint] Could not parse LLM response as JSON")
+                {:ok, empty_report}
+            end
+
+          nil ->
+            Logger.warning("[Lint] No JSON found in LLM response")
+            {:ok, empty_report}
+        end
     end
+  end
+
+  defp build_report(data, orphans, stale, missing_outcomes) do
+    %{
+      contradictions: Map.get(data, "contradictions", []),
+      orphans: orphans,
+      stale: stale,
+      missing_outcomes: missing_outcomes,
+      missing_pages: Map.get(data, "missing_pages", []),
+      missing_links: Map.get(data, "missing_links", []),
+      suggestions: Map.get(data, "investigation_suggestions", [])
+    }
   end
 
   defp apply_lint_fixes(workspace_id, report) do
@@ -182,29 +205,50 @@ defmodule KnowledgeIndex.Pipeline.Lint do
         case Repo.get_by(WikiPage, workspace_id: workspace_id, slug: slug) do
           nil -> :ok
           page ->
-            page |> WikiPage.changeset(%{stale: true}) |> Repo.update!()
+            case page |> WikiPage.changeset(%{stale: true}) |> Repo.update() do
+              {:ok, _} -> :ok
+              {:error, cs} -> Logger.warning("[Lint] Failed to mark #{slug} stale: #{inspect(cs.errors)}")
+            end
         end
       end)
 
-      # Flag contradictions
-      Enum.each(report.contradictions, fn %{"page_a" => slug_a, "description" => desc} ->
-        case Repo.get_by(WikiPage, workspace_id: workspace_id, slug: slug_a) do
-          nil -> :ok
-          page ->
-            updated = [desc | page.contradictions] |> Enum.uniq() |> Enum.take(20)
-            page |> WikiPage.changeset(%{contradictions: updated}) |> Repo.update!()
+      # Flag contradictions (handle both "page_a" and missing keys gracefully)
+      Enum.each(report.contradictions, fn contradiction ->
+        slug_a = Map.get(contradiction, "page_a")
+        desc = Map.get(contradiction, "description", "Unknown contradiction")
+
+        if slug_a do
+          case Repo.get_by(WikiPage, workspace_id: workspace_id, slug: slug_a) do
+            nil -> :ok
+            page ->
+              updated = [desc | page.contradictions] |> Enum.uniq() |> Enum.take(20)
+
+              case page |> WikiPage.changeset(%{contradictions: updated}) |> Repo.update() do
+                {:ok, _} -> :ok
+                {:error, cs} -> Logger.warning("[Lint] Failed to flag contradiction on #{slug_a}: #{inspect(cs.errors)}")
+              end
+          end
         end
       end)
 
       # Add missing cross-references
-      Enum.each(report.missing_links, fn %{"from_slug" => from, "to_slug" => to} ->
-        case Repo.get_by(WikiPage, workspace_id: workspace_id, slug: from) do
-          nil -> :ok
-          page ->
-            unless to in page.outbound_links do
-              updated = [to | page.outbound_links]
-              page |> WikiPage.changeset(%{outbound_links: updated}) |> Repo.update!()
-            end
+      Enum.each(report.missing_links, fn link ->
+        from = Map.get(link, "from_slug")
+        to = Map.get(link, "to_slug")
+
+        if from && to do
+          case Repo.get_by(WikiPage, workspace_id: workspace_id, slug: from) do
+            nil -> :ok
+            page ->
+              unless to in page.outbound_links do
+                updated = [to | page.outbound_links]
+
+                case page |> WikiPage.changeset(%{outbound_links: updated}) |> Repo.update() do
+                  {:ok, _} -> :ok
+                  {:error, cs} -> Logger.warning("[Lint] Failed to add link #{from} -> #{to}: #{inspect(cs.errors)}")
+                end
+              end
+          end
         end
       end)
 

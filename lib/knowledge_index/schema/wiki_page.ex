@@ -22,7 +22,7 @@ defmodule KnowledgeIndex.Schema.WikiPage do
     field :page_type, :string        # entity | concept | decision | synthesis | source_summary | outcome | contradiction | index | log
     field :content, :string          # full markdown body — LLM owns and maintains this
     field :summary, :string          # one-line summary for index.md
-    field :embedding, Pgvector.Ecto.Vector  # 1536-dim, text-embedding-3-small
+    field :embedding, Pgvector.Ecto.Vector  # 1024-dim, voyage-3
     field :source_count, :integer, default: 0   # how many raw artifacts contributed to this page
     field :inbound_links, {:array, :string}, default: []  # slugs of pages that link here
     field :outbound_links, {:array, :string}, default: []  # slugs this page links to

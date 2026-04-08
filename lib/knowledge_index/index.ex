@@ -10,13 +10,11 @@ defmodule KnowledgeIndex.Index do
         where: p.workspace_id == ^workspace_id
     )
 
-    Repo.transaction(fn ->
-      # Clear existing index
-      Repo.delete_all(from e in IndexEntry, where: e.workspace_id == ^workspace_id)
+    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
 
-      # Rebuild from pages
-      Enum.each(pages, fn page ->
-        Repo.insert!(%IndexEntry{
+    entries =
+      Enum.map(pages, fn page ->
+        %{
           workspace_id: workspace_id,
           wiki_page_slug: page.slug,
           title: page.title,
@@ -24,12 +22,19 @@ defmodule KnowledgeIndex.Index do
           page_type: page.page_type,
           category: categorize(page.page_type),
           source_count: page.source_count,
-          last_updated: page.updated_at
-        })
+          last_updated: page.updated_at,
+          inserted_at: now,
+          updated_at: now
+        }
       end)
-    end)
 
-    {:ok, length(pages)}
+    case Repo.transaction(fn ->
+      Repo.delete_all(from e in IndexEntry, where: e.workspace_id == ^workspace_id)
+      Repo.insert_all(IndexEntry, entries)
+    end) do
+      {:ok, _} -> {:ok, length(pages)}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp categorize("entity"), do: "entities"

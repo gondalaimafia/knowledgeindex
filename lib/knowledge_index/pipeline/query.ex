@@ -23,6 +23,13 @@ defmodule KnowledgeIndex.Pipeline.Query do
 
   @max_index_pages 10
   @max_semantic_pages 5
+  @max_context_chars 30_000
+
+  @stopwords ~w(a an the is are was were be been being have has had do does did
+    will would shall should may might must can could of in to for on with at by
+    from as into through during before after above below between out about up
+    this that these those it its what which who whom how when where why not no
+    and or but if then else so than too very just also already still even both)
 
   def run(workspace_id, query_text, opts \\ []) do
     file_answer = Keyword.get(opts, :file_answer, true)
@@ -61,8 +68,11 @@ defmodule KnowledgeIndex.Pipeline.Query do
   end
 
   defp scan_index(query_text, index_entries) do
-    query_lower = String.downcase(query_text)
-    query_words = String.split(query_lower, ~r/\s+/)
+    query_words =
+      query_text
+      |> String.downcase()
+      |> String.split(~r/\s+/)
+      |> Enum.reject(&(&1 in @stopwords))
 
     index_entries
     |> Enum.map(fn entry ->
@@ -106,10 +116,23 @@ defmodule KnowledgeIndex.Pipeline.Query do
   # ──────────────────────────────────────────────────────────────────────────
 
   defp synthesize(query_text, pages) do
+    # Budget page content to stay within LLM context limits
     pages_text =
       pages
-      |> Enum.map(fn page -> "## [[#{page.slug}]] #{page.title}\n\n#{page.content}" end)
-      |> Enum.join("\n\n---\n\n")
+      |> Enum.reduce_while({"", 0}, fn page, {acc, chars} ->
+        page_text = "## [[#{page.slug}]] #{page.title}\n\n#{page.content}\n\n---\n\n"
+        new_chars = chars + String.length(page_text)
+
+        if new_chars > @max_context_chars do
+          # Truncate this page's content to fit the remaining budget
+          remaining = max(@max_context_chars - chars - 200, 0)
+          truncated = "## [[#{page.slug}]] #{page.title}\n\n#{String.slice(page.content, 0, remaining)}...\n\n---\n\n"
+          {:halt, {acc <> truncated, @max_context_chars}}
+        else
+          {:cont, {acc <> page_text, new_chars}}
+        end
+      end)
+      |> elem(0)
 
     prompt = """
     Answer the following question using only the wiki pages provided.
@@ -169,21 +192,34 @@ defmodule KnowledgeIndex.Pipeline.Query do
     page_type = Keyword.get(opts, :page_type)
     limit = Keyword.get(opts, :limit, 10)
 
-    {:ok, index} = Wiki.load_index(workspace_id)
+    case Wiki.load_index(workspace_id) do
+      {:ok, index} ->
+        query_words =
+          query_text
+          |> String.downcase()
+          |> String.split(~r/\s+/)
+          |> Enum.reject(&(&1 in @stopwords))
 
-    results =
-      index
-      |> Enum.filter(fn entry ->
-        query_lower = String.downcase(query_text)
-        combined = "#{String.downcase(entry.title)} #{String.downcase(entry.summary)}"
-        String.contains?(combined, query_lower) and
-          (is_nil(page_type) or entry.page_type == page_type)
-      end)
-      |> Enum.take(limit)
-      |> Enum.map(fn entry ->
-        %{slug: entry.wiki_page_slug, title: entry.title, page_type: entry.page_type, summary: entry.summary}
-      end)
+        results =
+          index
+          |> Enum.map(fn entry ->
+            combined = "#{String.downcase(entry.title)} #{String.downcase(entry.summary)}"
+            score = Enum.count(query_words, &String.contains?(combined, &1))
+            {entry, score}
+          end)
+          |> Enum.filter(fn {entry, score} ->
+            score > 0 and (is_nil(page_type) or entry.page_type == page_type)
+          end)
+          |> Enum.sort_by(fn {_, score} -> score end, :desc)
+          |> Enum.take(limit)
+          |> Enum.map(fn {entry, _} ->
+            %{slug: entry.wiki_page_slug, title: entry.title, page_type: entry.page_type, summary: entry.summary}
+          end)
 
-    {:ok, results}
+        {:ok, results}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 end

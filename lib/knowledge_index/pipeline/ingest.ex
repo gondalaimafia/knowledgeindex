@@ -4,6 +4,7 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
   alias KnowledgeIndex.{Repo, LLM, Wiki, Index, Log}
   alias KnowledgeIndex.Schema.{RawSource, WikiPage}
 
+  import Ecto.Query
   require Logger
 
   @moduledoc """
@@ -87,35 +88,36 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
 
     ## Output format
 
-    Return a JSON object:
+    Return a JSON object with these exact keys. All fields marked REQUIRED must be present.
+
     {
       "new_pages": [
         {
-          "slug": "feature-smart-notifications",
-          "title": "Smart Notifications",
-          "page_type": "entity",
-          "content": "## Smart Notifications\\n\\nFull markdown content...",
-          "summary": "Push notification feature targeting re-engagement",
-          "outbound_links": ["metric-dau-d7", "user-segment-dormant"]
+          "slug": "feature-smart-notifications",   // REQUIRED. Lowercase, hyphenated, no spaces.
+          "title": "Smart Notifications",            // REQUIRED. Human-readable title.
+          "page_type": "entity",                     // REQUIRED. One of: entity, concept, decision, synthesis, source_summary, outcome
+          "content": "## Smart Notifications\\n\\nFull markdown content...",  // REQUIRED. Full markdown body.
+          "summary": "Push notification feature targeting re-engagement",     // REQUIRED. Under 200 characters.
+          "outbound_links": ["metric-dau-d7", "user-segment-dormant"]         // Slugs of related pages.
         }
       ],
       "updated_pages": [
         {
-          "slug": "metric-dau-d7",
-          "content": "Updated full content integrating new data from this source...",
-          "summary": "DAU D7 retention metric — currently 34%, target 42%"
+          "slug": "metric-dau-d7",                   // REQUIRED. Must match an existing page slug from the index.
+          "content": "Updated full content...",       // REQUIRED. Complete updated page content (not a diff).
+          "summary": "DAU D7 retention metric — currently 34%, target 42%"  // REQUIRED. Under 200 characters.
         }
       ],
       "contradictions": [
         {
-          "page_slug": "decision-push-notifications-opt-in",
+          "page_slug": "decision-push-notifications-opt-in",  // REQUIRED. Slug of the page with the conflicting claim.
           "claim": "Source says notifications are opt-out by default",
           "existing_claim": "Wiki says notifications require explicit opt-in"
         }
       ]
     }
 
-    Return only valid JSON. No markdown wrapper.
+    CRITICAL: Return only valid JSON. No markdown fences, no commentary, no text before or after the JSON object.
     """
   end
 
@@ -137,17 +139,31 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
 
   defp parse_compilation(response) do
     case Jason.decode(response) do
-      {:ok, data} ->
+      {:ok, data} when is_map(data) ->
         {:ok, %{
           new_pages: Map.get(data, "new_pages", []),
           updated_pages: Map.get(data, "updated_pages", []),
           contradictions: Map.get(data, "contradictions", [])
         }}
-      {:error, _} ->
-        # LLM returned non-JSON — attempt to extract JSON block
+
+      _ ->
+        # LLM returned non-JSON — attempt to extract JSON block (no recursion)
         case extract_json(response) do
-          {:ok, json} -> parse_compilation(json)
-          :error -> {:error, :invalid_llm_response}
+          {:ok, json} ->
+            case Jason.decode(json) do
+              {:ok, data} when is_map(data) ->
+                {:ok, %{
+                  new_pages: Map.get(data, "new_pages", []),
+                  updated_pages: Map.get(data, "updated_pages", []),
+                  contradictions: Map.get(data, "contradictions", [])
+                }}
+
+              _ ->
+                {:error, :invalid_llm_response}
+            end
+
+          :error ->
+            {:error, :invalid_llm_response}
         end
     end
   end
@@ -157,34 +173,58 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
   # ──────────────────────────────────────────────────────────────────────────
 
   defp apply_compilation(workspace_id, %{new_pages: new, updated_pages: updated, contradictions: contradictions}) do
-    Repo.transaction(fn ->
-      pages_touched =
-        Enum.concat(
-          Enum.map(new, &create_page(workspace_id, &1)),
-          Enum.map(updated, &update_page(workspace_id, &1))
-        )
-        |> Enum.reject(&is_nil/1)
+    # DB transaction: create/update pages and flag contradictions (no HTTP calls here)
+    result =
+      Repo.transaction(fn ->
+        pages_touched =
+          Enum.concat(
+            Enum.map(new, &create_page(workspace_id, &1)),
+            Enum.map(updated, &update_page(workspace_id, &1))
+          )
+          |> Enum.reject(&is_nil/1)
 
-      Enum.each(contradictions, &flag_contradiction(workspace_id, &1))
+        Enum.each(contradictions, &flag_contradiction(workspace_id, &1))
 
-      pages_touched
-    end)
+        pages_touched
+      end)
+
+    # Post-transaction work: embed pages and rebuild inbound links (no DB transaction held)
+    case result do
+      {:ok, pages_touched} ->
+        embed_pages(workspace_id, pages_touched)
+        rebuild_inbound_links(workspace_id)
+        {:ok, pages_touched}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp create_page(workspace_id, attrs) do
     attrs
     |> Map.put("workspace_id", workspace_id)
-    |> then(&WikiPage.changeset(%WikiPage{}, &1))
-    |> then(fn changeset ->
-      case Repo.insert(changeset, on_conflict: :nothing) do
-        {:ok, page} ->
-          embed_page(page)
-          page.slug
-        {:error, _} ->
-          Logger.warning("[Ingest] Page #{attrs["slug"]} already exists, skipping create")
-          nil
-      end
-    end)
+    |> Map.put_new("source_count", 1)
+    |> validate_page_attrs()
+    |> case do
+      :error ->
+        Logger.warning("[Ingest] Invalid page attrs: #{inspect(attrs)}")
+        nil
+
+      validated_attrs ->
+        %WikiPage{}
+        |> WikiPage.changeset(validated_attrs)
+        |> Repo.insert(on_conflict: :nothing, conflict_target: [:workspace_id, :slug])
+        |> case do
+          {:ok, %{id: nil}} ->
+            Logger.info("[Ingest] Page #{attrs["slug"]} already exists, skipping create")
+            nil
+          {:ok, page} ->
+            page.slug
+          {:error, changeset} ->
+            Logger.warning("[Ingest] Failed to create page #{attrs["slug"]}: #{inspect(changeset.errors)}")
+            nil
+        end
+    end
   end
 
   defp update_page(workspace_id, %{"slug" => slug} = attrs) do
@@ -195,10 +235,18 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
 
       existing ->
         existing
-        |> WikiPage.changeset(Map.put(attrs, "version", existing.version + 1))
-        |> Repo.update!()
-        |> tap(&embed_page/1)
-        |> Map.get(:slug)
+        |> WikiPage.changeset(
+          attrs
+          |> Map.put("version", existing.version + 1)
+          |> Map.put("source_count", existing.source_count + 1)
+        )
+        |> Repo.update()
+        |> case do
+          {:ok, page} -> page.slug
+          {:error, changeset} ->
+            Logger.warning("[Ingest] Failed to update page #{slug}: #{inspect(changeset.errors)}")
+            nil
+        end
     end
   end
 
@@ -206,15 +254,38 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
     case Repo.get_by(WikiPage, workspace_id: workspace_id, slug: slug) do
       nil -> :ok
       page ->
+        updated = [contradiction["claim"] | page.contradictions] |> Enum.uniq() |> Enum.take(20)
+
         page
-        |> WikiPage.changeset(%{contradictions: [contradiction["claim"] | page.contradictions]})
-        |> Repo.update!()
+        |> WikiPage.changeset(%{contradictions: updated})
+        |> Repo.update()
+        |> case do
+          {:ok, _} -> :ok
+          {:error, changeset} ->
+            Logger.warning("[Ingest] Failed to flag contradiction on #{slug}: #{inspect(changeset.errors)}")
+        end
     end
   end
 
+  defp flag_contradiction(_workspace_id, invalid) do
+    Logger.warning("[Ingest] Skipping malformed contradiction: #{inspect(invalid)}")
+  end
+
   # ──────────────────────────────────────────────────────────────────────────
-  # Embedding (pgvector)
+  # Embedding (pgvector) — runs outside DB transactions
   # ──────────────────────────────────────────────────────────────────────────
+
+  defp embed_pages(workspace_id, slugs) do
+    pages =
+      Repo.all(
+        from p in WikiPage,
+          where: p.workspace_id == ^workspace_id and p.slug in ^slugs
+      )
+
+    Enum.each(pages, &embed_page/1)
+  end
+
+  defp embed_page(%WikiPage{id: nil}), do: :ok
 
   defp embed_page(%WikiPage{} = page) do
     text = "#{page.title}\n\n#{page.summary}\n\n#{String.slice(page.content, 0, 2000)}"
@@ -223,10 +294,59 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
       {:ok, embedding} ->
         page
         |> WikiPage.changeset(%{embedding: embedding})
-        |> Repo.update!()
+        |> Repo.update()
+        |> case do
+          {:ok, _} -> :ok
+          {:error, changeset} ->
+            Logger.warning("[Ingest] Failed to save embedding for #{page.slug}: #{inspect(changeset.errors)}")
+        end
+
       {:error, reason} ->
         Logger.warning("[Ingest] Failed to embed page #{page.slug}: #{inspect(reason)}")
     end
+  end
+
+  defp validate_page_attrs(%{"slug" => slug, "title" => title, "page_type" => _, "content" => _} = attrs)
+       when is_binary(slug) and is_binary(title) do
+    attrs
+  end
+
+  defp validate_page_attrs(_), do: :error
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Inbound links — compute the reverse of outbound_links for navigation
+  # ──────────────────────────────────────────────────────────────────────────
+
+  defp rebuild_inbound_links(workspace_id) do
+    pages =
+      Repo.all(
+        from p in WikiPage,
+          where: p.workspace_id == ^workspace_id,
+          select: {p.slug, p.outbound_links}
+      )
+
+    # Build reverse index: for each outbound link, record who links to it
+    inbound_map =
+      Enum.reduce(pages, %{}, fn {slug, outbound_links}, acc ->
+        Enum.reduce(outbound_links, acc, fn target, inner_acc ->
+          Map.update(inner_acc, target, [slug], &[slug | &1])
+        end)
+      end)
+
+    # Update each page's inbound_links
+    Enum.each(inbound_map, fn {slug, inbound} ->
+      case Repo.get_by(WikiPage, workspace_id: workspace_id, slug: slug) do
+        nil -> :ok
+        page ->
+          inbound = Enum.uniq(inbound)
+
+          if inbound != page.inbound_links do
+            page
+            |> WikiPage.changeset(%{inbound_links: inbound})
+            |> Repo.update()
+          end
+      end
+    end)
   end
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -260,7 +380,8 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
   end
 
   defp extract_json(text) do
-    case Regex.run(~r/\{[\s\S]*\}/m, text) do
+    # Non-greedy match to avoid capturing text after the JSON object
+    case Regex.run(~r/\{[\s\S]*?\}/m, text) do
       [json | _] -> {:ok, json}
       nil -> :error
     end
