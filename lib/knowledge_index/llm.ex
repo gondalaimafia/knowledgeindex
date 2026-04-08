@@ -11,9 +11,8 @@ defmodule KnowledgeIndex.LLM do
   """
 
   @claude_model "claude-sonnet-4-5"
-  # Using Claude for embeddings via voyage-3 (Anthropic's embedding API)
+  # Using Voyage for embeddings (Anthropic's recommended embedding partner)
   @embedding_model "voyage-3"
-  @embedding_dims 1024
 
   def complete(prompt, opts \\ []) do
     system = Keyword.get(opts, :system, "You are a helpful assistant.")

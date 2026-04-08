@@ -1,6 +1,6 @@
 defmodule KnowledgeIndex.Pipeline.Query do
   alias KnowledgeIndex.{Repo, Wiki, LLM, Log}
-  alias KnowledgeIndex.Schema.{WikiPage, IndexEntry}
+  alias KnowledgeIndex.Schema.WikiPage
 
   import Ecto.Query
   import Pgvector.Ecto.Query

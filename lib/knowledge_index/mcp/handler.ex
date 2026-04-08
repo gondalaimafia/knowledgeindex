@@ -1,5 +1,5 @@
 defmodule KnowledgeIndex.MCP.Handler do
-  alias KnowledgeIndex.{Repo, Wiki, Pipeline, Log}
+  alias KnowledgeIndex.{Repo, Pipeline}
   alias KnowledgeIndex.Schema.{WikiPage, IndexEntry, LogEntry, RawSource}
 
   import Ecto.Query

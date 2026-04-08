@@ -1,7 +1,7 @@
 defmodule KnowledgeIndexWeb.KIController do
   use Phoenix.Controller, formats: [:json]
 
-  alias KnowledgeIndex.{Pipeline, Wiki, Index, Log, Repo}
+  alias KnowledgeIndex.{Pipeline, Wiki, Repo}
   alias KnowledgeIndex.Schema.RawSource
 
   def health(conn, _params) do

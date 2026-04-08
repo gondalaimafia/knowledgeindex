@@ -1,7 +1,6 @@
 defmodule KnowledgeIndex.MCP.Server do
   use GenServer
 
-  alias KnowledgeIndex.{Pipeline, Wiki, Log}
   alias KnowledgeIndex.MCP.{Handler, Protocol}
 
   require Logger

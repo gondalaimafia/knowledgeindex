@@ -1,37 +1,23 @@
 import Config
 
 if config_env() == :prod do
+  # Parse DATABASE_URL into individual fields
+  # Neon format: postgresql://user:pass@host/dbname?params
   database_url =
     System.get_env("DATABASE_URL") ||
       raise "DATABASE_URL not set"
 
-  # Parse Neon URL into explicit fields (per Neon's official Elixir guide)
-  uri = URI.parse(database_url)
-
-  {username, password} =
-    case String.split(uri.userinfo || "", ":") do
-      [u, p] -> {u, p}
-      [u] -> {u, ""}
-      _ -> raise "Invalid DATABASE_URL userinfo"
-    end
-
-  database =
-    case uri.path do
-      "/" <> db -> db
-      _ -> "neondb"
-    end
+  # Use Ecto's built-in URL parser which handles all edge cases
+  keyword = Ecto.Repo.Supervisor.parse_url(database_url)
 
   config :knowledge_index, KnowledgeIndex.Repo,
-    hostname: uri.host,
-    port: uri.port || 5432,
-    username: username,
-    password: password,
-    database: database,
-    pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5"),
-    ssl: [verify: :verify_none],
-    connect_timeout: 30_000,
-    queue_target: 10_000,
-    queue_interval: 30_000
+    [
+      ssl: [verify: :verify_none],
+      pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5"),
+      connect_timeout: 30_000,
+      queue_target: 10_000,
+      queue_interval: 30_000
+    ] ++ keyword
 
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||

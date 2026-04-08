@@ -4,8 +4,6 @@ defmodule KnowledgeIndex.Pipeline.Lint do
   alias KnowledgeIndex.{Repo, Wiki, LLM, Log}
   alias KnowledgeIndex.Schema.WikiPage
 
-  import Ecto.Query
-
   require Logger
 
   @moduledoc """
@@ -57,8 +55,6 @@ defmodule KnowledgeIndex.Pipeline.Lint do
   end
 
   defp find_orphans(pages) do
-    all_slugs = MapSet.new(pages, & &1.slug)
-
     pages
     |> Enum.filter(fn page ->
       # No other page links to this one
