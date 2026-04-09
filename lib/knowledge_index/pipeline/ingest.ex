@@ -1,5 +1,5 @@
 defmodule KnowledgeIndex.Pipeline.Ingest do
-  use Oban.Worker, queue: :ingest, max_attempts: 3
+  use Oban.Worker, queue: :ingest, max_attempts: 10
 
   alias KnowledgeIndex.{Repo, LLM, Wiki, Index, Log}
   alias KnowledgeIndex.Schema.{RawSource, WikiPage}

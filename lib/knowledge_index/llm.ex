@@ -31,7 +31,9 @@ defmodule KnowledgeIndex.LLM do
         {"x-api-key", api_key()},
         {"anthropic-version", "2023-06-01"},
         {"content-type", "application/json"}
-      ]
+      ],
+      receive_timeout: 120_000,
+      connect_timeout: 30_000
     ) do
       {:ok, %{status: 200, body: %{"content" => [%{"text" => text} | _]}}} ->
         {:ok, text}
@@ -55,7 +57,9 @@ defmodule KnowledgeIndex.LLM do
       headers: [
         {"authorization", "Bearer #{voyage_key()}"},
         {"content-type", "application/json"}
-      ]
+      ],
+      receive_timeout: 60_000,
+      connect_timeout: 15_000
     ) do
       {:ok, %{status: 200, body: %{"data" => [%{"embedding" => embedding} | _]}}} ->
         {:ok, embedding}
