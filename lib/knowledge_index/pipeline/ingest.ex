@@ -51,10 +51,15 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
 
   defp compile(source, existing_index) do
     prompt = build_ingest_prompt(source, existing_index)
+    Logger.info("[Ingest] Calling LLM for source #{source.id} (#{source.title})...")
 
     case LLM.complete(prompt, system: ingest_system_prompt()) do
-      {:ok, response} -> parse_compilation(response)
-      {:error, _} = err -> err
+      {:ok, response} ->
+        Logger.info("[Ingest] LLM responded for source #{source.id}, parsing...")
+        parse_compilation(response)
+      {:error, reason} = err ->
+        Logger.error("[Ingest] LLM failed for source #{source.id}: #{inspect(reason)}")
+        err
     end
   end
 
