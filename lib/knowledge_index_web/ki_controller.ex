@@ -141,4 +141,22 @@ defmodule KnowledgeIndexWeb.KIController do
 
     json(conn, logs)
   end
+
+  # Re-queue all un-compiled sources for a workspace
+  def requeue(conn, %{"workspace_id" => ws}) do
+    import Ecto.Query
+
+    sources =
+      from(s in RawSource,
+        where: s.workspace_id == ^ws and s.wiki_pages_touched == ^[],
+        select: s.id
+      )
+      |> Repo.all()
+
+    for source_id <- sources do
+      Oban.insert(Pipeline.Ingest.new(%{"source_id" => source_id, "workspace_id" => ws}))
+    end
+
+    json(conn, %{message: "Re-queued #{length(sources)} sources for ingestion", count: length(sources)})
+  end
 end

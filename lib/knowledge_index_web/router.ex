@@ -26,5 +26,6 @@ defmodule KnowledgeIndexWeb.Router do
     get "/health", KIController, :health
     get "/stats", KIController, :stats
     get "/logs", KIController, :logs
+    post "/requeue", KIController, :requeue
   end
 end
