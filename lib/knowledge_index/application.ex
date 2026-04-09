@@ -35,7 +35,7 @@ defmodule KnowledgeIndex.Application do
     [
       repo: KnowledgeIndex.Repo,
       queues: [
-        ingest: 5,      # artifact ingestion → wiki compilation
+        ingest: 2,      # artifact ingestion → wiki compilation (reduced to avoid API rate limits)
         lint: 2,        # periodic wiki health checks
         watch: 10,      # real-time artifact change detection
         query: 5        # async query answer filing
