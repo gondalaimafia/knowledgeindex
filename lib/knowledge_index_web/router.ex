@@ -27,5 +27,6 @@ defmodule KnowledgeIndexWeb.Router do
     get "/stats", KIController, :stats
     get "/logs", KIController, :logs
     post "/requeue", KIController, :requeue
+    post "/reset-workspace", KIController, :reset_workspace
   end
 end

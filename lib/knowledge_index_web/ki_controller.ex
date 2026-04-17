@@ -142,6 +142,32 @@ defmodule KnowledgeIndexWeb.KIController do
     json(conn, logs)
   end
 
+  # Reset a workspace: delete all sources, pages, log entries, and index entries
+  def reset_workspace(conn, %{"workspace_id" => ws}) do
+    import Ecto.Query
+
+    # Don't allow resetting the system workspace
+    if ws == "00000000-0000-0000-0000-000000000001" do
+      conn |> put_status(403) |> json(%{error: "Cannot reset system workspace"})
+    else
+      pages_deleted = Repo.delete_all(from p in KnowledgeIndex.Schema.WikiPage, where: p.workspace_id == ^ws)
+      sources_deleted = Repo.delete_all(from s in RawSource, where: s.workspace_id == ^ws)
+      logs_deleted = Repo.delete_all(from l in KnowledgeIndex.Schema.LogEntry, where: l.workspace_id == ^ws)
+      index_deleted = Repo.delete_all(from i in KnowledgeIndex.Schema.IndexEntry, where: i.workspace_id == ^ws)
+
+      json(conn, %{
+        message: "Workspace reset",
+        workspace_id: ws,
+        deleted: %{
+          pages: elem(pages_deleted, 0),
+          sources: elem(sources_deleted, 0),
+          logs: elem(logs_deleted, 0),
+          index_entries: elem(index_deleted, 0)
+        }
+      })
+    end
+  end
+
   # Re-queue all un-compiled sources for a workspace
   def requeue(conn, %{"workspace_id" => ws}) do
     import Ecto.Query
