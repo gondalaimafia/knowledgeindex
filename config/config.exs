@@ -10,6 +10,6 @@ config :knowledge_index, KnowledgeIndexWeb.Endpoint,
 
 config :knowledge_index, Oban,
   repo: KnowledgeIndex.Repo,
-  queues: [ingest: 5, lint: 2, watch: 10, query: 5]
+  queues: [ingest: 10, lint: 2, watch: 10, query: 5, index_rebuild: 1]
 
 import_config "#{config_env()}.exs"

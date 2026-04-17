@@ -47,8 +47,34 @@ defmodule KnowledgeIndex.LLM do
   end
 
   def embed(text) do
+    case embed_batch([text]) do
+      {:ok, [embedding | _]} -> {:ok, embedding}
+      {:error, _} = err -> err
+    end
+  end
+
+  @doc """
+  Embed multiple texts in a single Voyage API call.
+  Voyage supports up to 128 inputs per request.
+  Returns {:ok, [embedding]} in the same order as inputs.
+  """
+  def embed_batch(texts) when is_list(texts) and length(texts) > 0 do
+    # Voyage max batch size is 128; chunk if needed
+    texts
+    |> Enum.chunk_every(128)
+    |> Enum.reduce_while({:ok, []}, fn chunk, {:ok, acc} ->
+      case do_embed_batch(chunk) do
+        {:ok, embeddings} -> {:cont, {:ok, acc ++ embeddings}}
+        {:error, _} = err -> {:halt, err}
+      end
+    end)
+  end
+
+  def embed_batch([]), do: {:ok, []}
+
+  defp do_embed_batch(texts) do
     body = %{
-      input: text,
+      input: texts,
       model: @embedding_model
     }
 
@@ -58,11 +84,15 @@ defmodule KnowledgeIndex.LLM do
         {"authorization", "Bearer #{voyage_key()}"},
         {"content-type", "application/json"}
       ],
-      receive_timeout: 60_000,
+      receive_timeout: 120_000,
       connect_timeout: 15_000
     ) do
-      {:ok, %{status: 200, body: %{"data" => [%{"embedding" => embedding} | _]}}} ->
-        {:ok, embedding}
+      {:ok, %{status: 200, body: %{"data" => data}}} when is_list(data) ->
+        embeddings =
+          data
+          |> Enum.sort_by(& &1["index"])
+          |> Enum.map(& &1["embedding"])
+        {:ok, embeddings}
 
       {:ok, %{status: status, body: body}} ->
         {:error, {:api_error, status, body}}

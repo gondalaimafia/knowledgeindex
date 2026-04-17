@@ -31,18 +31,29 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
          {:ok, compilation} <- compile(source, existing_index),
          {:ok, pages_touched} <- apply_compilation(workspace_id, compilation),
          {:ok, _} <- mark_ingested(source, pages_touched),
-         {:ok, _} <- Index.rebuild(workspace_id),
          {:ok, _} <- Log.append(workspace_id, :ingest, source.title, %{
            source_id: source_id,
            pages_touched: pages_touched
          }) do
       broadcast_wiki_update(workspace_id, pages_touched)
+      # Defer index rebuild — runs async so pages are visible immediately
+      schedule_index_rebuild(workspace_id)
       :ok
     else
       {:error, reason} ->
         Logger.error("[Ingest] Failed for source #{source_id}: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  defp schedule_index_rebuild(workspace_id) do
+    # Debounce: schedule rebuild 5 seconds out so multiple ingests batch into one rebuild
+    %{"workspace_id" => workspace_id}
+    |> KnowledgeIndex.Pipeline.IndexRebuild.new(
+      queue: :index_rebuild,
+      unique: [period: 10, keys: [:workspace_id]]
+    )
+    |> Oban.insert()
   end
 
   # ──────────────────────────────────────────────────────────────────────────
@@ -286,13 +297,45 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
         from p in WikiPage,
           where: p.workspace_id == ^workspace_id and p.slug in ^slugs
       )
+      |> Enum.reject(&is_nil(&1.id))
 
-    Enum.each(pages, &embed_page/1)
+    if pages == [] do
+      :ok
+    else
+      # Batch embed: one Voyage API call for all pages instead of N sequential calls
+      texts = Enum.map(pages, fn page ->
+        "#{page.title}\n\n#{page.summary}\n\n#{String.slice(page.content, 0, 2000)}"
+      end)
+
+      case LLM.embed_batch(texts) do
+        {:ok, embeddings} ->
+          # Save embeddings concurrently
+          pages
+          |> Enum.zip(embeddings)
+          |> Task.async_stream(
+            fn {page, embedding} ->
+              page
+              |> WikiPage.changeset(%{embedding: embedding})
+              |> Repo.update()
+              |> case do
+                {:ok, _} -> :ok
+                {:error, changeset} ->
+                  Logger.warning("[Ingest] Failed to save embedding for #{page.slug}: #{inspect(changeset.errors)}")
+              end
+            end,
+            max_concurrency: 10,
+            timeout: 30_000
+          )
+          |> Stream.run()
+
+        {:error, reason} ->
+          Logger.warning("[Ingest] Batch embed failed: #{inspect(reason)}, falling back to sequential")
+          Enum.each(pages, &embed_page_fallback/1)
+      end
+    end
   end
 
-  defp embed_page(%WikiPage{id: nil}), do: :ok
-
-  defp embed_page(%WikiPage{} = page) do
+  defp embed_page_fallback(%WikiPage{} = page) do
     text = "#{page.title}\n\n#{page.summary}\n\n#{String.slice(page.content, 0, 2000)}"
 
     case LLM.embed(text) do
