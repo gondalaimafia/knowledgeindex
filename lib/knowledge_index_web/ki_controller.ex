@@ -168,6 +168,21 @@ defmodule KnowledgeIndexWeb.KIController do
     end
   end
 
+  # Cancel all pending/available Oban ingest jobs for a workspace
+  def cancel_jobs(conn, %{"workspace_id" => ws}) do
+    import Ecto.Query
+
+    cancelled =
+      from(j in Oban.Job,
+        where: j.queue == "ingest",
+        where: j.state in ["available", "scheduled", "retryable"],
+        where: fragment("?->>'workspace_id' = ?", j.args, ^ws)
+      )
+      |> Repo.update_all(set: [state: "cancelled", cancelled_at: DateTime.utc_now()])
+
+    json(conn, %{message: "Cancelled jobs", workspace_id: ws, count: elem(cancelled, 0)})
+  end
+
   # Re-queue all un-compiled sources for a workspace
   def requeue(conn, %{"workspace_id" => ws}) do
     import Ecto.Query
