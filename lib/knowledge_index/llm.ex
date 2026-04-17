@@ -33,7 +33,7 @@ defmodule KnowledgeIndex.LLM do
         {"content-type", "application/json"}
       ],
       receive_timeout: 120_000,
-      connect_timeout: 30_000
+      connect_options: [timeout: 30_000]
     ) do
       {:ok, %{status: 200, body: %{"content" => [%{"text" => text} | _]}}} ->
         {:ok, text}
@@ -85,7 +85,7 @@ defmodule KnowledgeIndex.LLM do
         {"content-type", "application/json"}
       ],
       receive_timeout: 120_000,
-      connect_timeout: 15_000
+      connect_options: [timeout: 15_000]
     ) do
       {:ok, %{status: 200, body: %{"data" => data}}} when is_list(data) ->
         embeddings =
