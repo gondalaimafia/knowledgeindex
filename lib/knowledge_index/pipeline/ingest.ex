@@ -428,10 +428,45 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
   end
 
   defp extract_json(text) do
-    # Non-greedy match to avoid capturing text after the JSON object
-    case Regex.run(~r/\{[\s\S]*?\}/m, text) do
-      [json | _] -> {:ok, json}
-      nil -> :error
+    # Strip markdown code fences if present
+    cleaned = text
+      |> String.replace(~r/^```(?:json)?\s*\n?/m, "")
+      |> String.replace(~r/\n?```\s*$/m, "")
+      |> String.trim()
+
+    # Try the cleaned text first (might be pure JSON after fence removal)
+    case Jason.decode(cleaned) do
+      {:ok, data} when is_map(data) -> {:ok, cleaned}
+      _ ->
+        # Find the outermost JSON object by matching balanced braces
+        case find_balanced_json(cleaned) do
+          nil -> :error
+          json -> {:ok, json}
+        end
+    end
+  end
+
+  defp find_balanced_json(text) do
+    case :binary.match(text, "{") do
+      {start, _} ->
+        text
+        |> String.slice(start..-1//1)
+        |> scan_balanced_braces(0, 0)
+      :nomatch -> nil
+    end
+  end
+
+  defp scan_balanced_braces(text, pos, depth) do
+    cond do
+      pos >= String.length(text) -> nil
+      String.at(text, pos) == "{" -> scan_balanced_braces(text, pos + 1, depth + 1)
+      String.at(text, pos) == "}" ->
+        if depth == 1 do
+          String.slice(text, 0..pos)
+        else
+          scan_balanced_braces(text, pos + 1, depth - 1)
+        end
+      true -> scan_balanced_braces(text, pos + 1, depth)
     end
   end
 
