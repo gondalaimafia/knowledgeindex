@@ -10,10 +10,16 @@ defmodule KnowledgeIndex.Index do
         where: p.workspace_id == ^workspace_id
     )
 
-    now = NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     entries =
       Enum.map(pages, fn page ->
+        last_updated = case page.updated_at do
+          %DateTime{} = dt -> dt
+          %NaiveDateTime{} = ndt -> DateTime.from_naive!(ndt, "Etc/UTC")
+          _ -> now
+        end
+
         %{
           workspace_id: workspace_id,
           wiki_page_slug: page.slug,
@@ -22,7 +28,7 @@ defmodule KnowledgeIndex.Index do
           page_type: page.page_type,
           category: categorize(page.page_type),
           source_count: page.source_count,
-          last_updated: page.updated_at,
+          last_updated: last_updated,
           inserted_at: now,
           updated_at: now
         }
