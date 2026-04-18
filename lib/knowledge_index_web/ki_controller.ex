@@ -89,8 +89,12 @@ defmodule KnowledgeIndexWeb.KIController do
   end
 
   def rebuild_index(conn, %{"workspace_id" => ws}) do
-    Oban.insert(Pipeline.IndexRebuild.new(%{"workspace_id" => ws}))
-    json(conn, %{message: "Index rebuild queued"})
+    case KnowledgeIndex.Index.rebuild(ws) do
+      {:ok, count} ->
+        json(conn, %{message: "Index rebuilt", count: count})
+      {:error, reason} ->
+        conn |> put_status(500) |> json(%{error: inspect(reason)})
+    end
   end
 
   def stats(conn, %{"workspace_id" => ws}) do
