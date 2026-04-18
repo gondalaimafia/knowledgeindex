@@ -29,5 +29,6 @@ defmodule KnowledgeIndexWeb.Router do
     post "/requeue", KIController, :requeue
     post "/cancel-jobs", KIController, :cancel_jobs
     post "/reset-workspace", KIController, :reset_workspace
+    post "/rebuild-index", KIController, :rebuild_index
   end
 end

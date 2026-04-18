@@ -88,6 +88,11 @@ defmodule KnowledgeIndexWeb.KIController do
     json(conn, %{message: "Lint pass queued"})
   end
 
+  def rebuild_index(conn, %{"workspace_id" => ws}) do
+    Oban.insert(Pipeline.IndexRebuild.new(%{"workspace_id" => ws}))
+    json(conn, %{message: "Index rebuild queued"})
+  end
+
   def stats(conn, %{"workspace_id" => ws}) do
     import Ecto.Query
 
