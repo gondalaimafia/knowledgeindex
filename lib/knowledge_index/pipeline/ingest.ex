@@ -64,7 +64,7 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
     prompt = build_ingest_prompt(source, existing_index)
     Logger.info("[Ingest] Calling LLM for source #{source.id} (#{source.title})...")
 
-    case LLM.complete(prompt, system: ingest_system_prompt(), max_tokens: 8192) do
+    case LLM.complete(prompt, system: ingest_system_prompt(), max_tokens: 16384) do
       {:ok, response} ->
         Logger.info("[Ingest] LLM responded for source #{source.id}, parsing (#{String.length(response)} chars)...")
         case parse_compilation(response) do
@@ -139,7 +139,11 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
       ]
     }
 
-    CRITICAL: Return only valid JSON. No markdown fences, no commentary, no text before or after the JSON object.
+    CRITICAL RULES:
+    1. Return ONLY valid JSON. No markdown fences (no ```), no commentary, no text before or after the JSON object.
+    2. Keep each page's content CONCISE — 300-800 words max per page. Focus on key facts, decisions, and insights. Do not reproduce the source verbatim.
+    3. Create 3-6 pages per source, not more. Quality over quantity.
+    4. The entire response must be valid JSON that can be parsed in one pass.
     """
   end
 
@@ -156,6 +160,8 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
     - Outcome data is critical — always create or update outcome pages when metrics appear.
     - The human reads the wiki. The LLM maintains it. Write for humans.
     - Keep summaries under 200 characters.
+    - Keep page content CONCISE: 300-800 words. Synthesize, don't reproduce.
+    - Return raw JSON only. Never wrap in markdown code fences.
     """
   end
 
