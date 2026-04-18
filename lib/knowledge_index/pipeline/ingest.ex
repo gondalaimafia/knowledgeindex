@@ -64,10 +64,16 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
     prompt = build_ingest_prompt(source, existing_index)
     Logger.info("[Ingest] Calling LLM for source #{source.id} (#{source.title})...")
 
-    case LLM.complete(prompt, system: ingest_system_prompt()) do
+    case LLM.complete(prompt, system: ingest_system_prompt(), max_tokens: 8192) do
       {:ok, response} ->
-        Logger.info("[Ingest] LLM responded for source #{source.id}, parsing...")
-        parse_compilation(response)
+        Logger.info("[Ingest] LLM responded for source #{source.id}, parsing (#{String.length(response)} chars)...")
+        case parse_compilation(response) do
+          {:ok, _} = result -> result
+          {:error, :invalid_llm_response} = err ->
+            Logger.error("[Ingest] Parse failed for source #{source.id}. First 500 chars: #{String.slice(response, 0, 500)}")
+            Logger.error("[Ingest] Last 200 chars: #{String.slice(response, -200, 200)}")
+            err
+        end
       {:error, reason} = err ->
         Logger.error("[Ingest] LLM failed for source #{source.id}: #{inspect(reason)}")
         err
