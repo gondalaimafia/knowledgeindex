@@ -32,7 +32,7 @@ defmodule KnowledgeIndex.LLM do
         {"anthropic-version", "2023-06-01"},
         {"content-type", "application/json"}
       ],
-      receive_timeout: 120_000,
+      receive_timeout: 300_000,
       connect_options: [timeout: 30_000]
     ) do
       {:ok, %{status: 200, body: %{"content" => [%{"text" => text} | _]}}} ->
