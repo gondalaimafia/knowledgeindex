@@ -1,5 +1,5 @@
 defmodule KnowledgeIndex.Pipeline.Query do
-  alias KnowledgeIndex.{Repo, Wiki, LLM, Log}
+  alias KnowledgeIndex.{Repo, Wiki, LLM, Log, Pipeline}
   alias KnowledgeIndex.Schema.WikiPage
 
   import Ecto.Query
@@ -108,7 +108,17 @@ defmodule KnowledgeIndex.Pipeline.Query do
         from p in WikiPage,
           where: p.workspace_id == ^workspace_id and p.slug in ^slugs
       )
-    {:ok, pages}
+
+    # Lazy enrichment — fill in Summary/Insights if not cached yet
+    enriched_pages =
+      Enum.map(pages, fn page ->
+        case Pipeline.Enrich.enrich_if_needed(page) do
+          {:ok, enriched} -> enriched
+          _ -> page
+        end
+      end)
+
+    {:ok, enriched_pages}
   end
 
   # ──────────────────────────────────────────────────────────────────────────

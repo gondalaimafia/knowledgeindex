@@ -17,9 +17,10 @@ defmodule KnowledgeIndex.LLM do
   def complete(prompt, opts \\ []) do
     system = Keyword.get(opts, :system, "You are a helpful assistant.")
     max_tokens = Keyword.get(opts, :max_tokens, 4096)
+    model = Keyword.get(opts, :model, @claude_model)
 
     body = %{
-      model: @claude_model,
+      model: model,
       max_tokens: max_tokens,
       system: system,
       messages: [%{role: "user", content: prompt}]
@@ -32,7 +33,7 @@ defmodule KnowledgeIndex.LLM do
         {"anthropic-version", "2023-06-01"},
         {"content-type", "application/json"}
       ],
-      receive_timeout: 300_000,
+      receive_timeout: 600_000,
       connect_options: [timeout: 30_000]
     ) do
       {:ok, %{status: 200, body: %{"content" => [%{"text" => text} | _]}}} ->

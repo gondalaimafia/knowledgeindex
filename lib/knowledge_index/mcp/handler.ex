@@ -30,7 +30,7 @@ defmodule KnowledgeIndex.MCP.Handler do
     case Repo.insert(RawSource.changeset(%RawSource{}, attrs)) do
       {:ok, source} ->
         Oban.insert(Pipeline.Ingest.new(%{"source_id" => source.id, "workspace_id" => ws}))
-        %{content: [%{type: "text", text: "Source '#{title}' queued for ingestion. Wiki will update shortly."}]}
+        %{content: [%{type: "text", text: "Source '#{title}' stored as structured wiki page. Enrichment (summary, insights, themes) will happen on first retrieval."}]}
       {:error, changeset} ->
         error_content("Ingest failed: #{inspect(changeset.errors)}")
     end

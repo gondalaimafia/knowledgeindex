@@ -31,7 +31,7 @@ defmodule KnowledgeIndexWeb.KIController do
     case Repo.insert(RawSource.changeset(%RawSource{}, attrs)) do
       {:ok, source} ->
         Oban.insert(Pipeline.Ingest.new(%{"source_id" => source.id, "workspace_id" => ws}))
-        json(conn, %{message: "Queued for ingestion", source_id: source.id})
+        json(conn, %{message: "Source stored. Wiki page created.", source_id: source.id})
       {:error, changeset} ->
         conn |> put_status(400) |> json(%{error: inspect(changeset.errors)})
     end
