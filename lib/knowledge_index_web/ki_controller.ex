@@ -20,6 +20,61 @@ defmodule KnowledgeIndexWeb.KIController do
   end
 
   def ingest(conn, %{"workspace_id" => ws, "source_type" => type, "title" => title, "content" => content} = params) do
+    import Ecto.Query
+
+    checksum = :crypto.hash(:sha256, content) |> Base.encode16(case: :lower)
+
+    # Check for duplicate by checksum (same content in same workspace)
+    existing_by_checksum = Repo.one(
+      from(s in RawSource,
+        where: s.workspace_id == ^ws and s.checksum == ^checksum,
+        limit: 1
+      )
+    )
+
+    if existing_by_checksum do
+      conn |> put_status(409) |> json(%{
+        error: "Duplicate content detected",
+        duplicate_of: %{
+          id: existing_by_checksum.id,
+          title: existing_by_checksum.title,
+          source_type: existing_by_checksum.source_type
+        },
+        message: "A source with identical content already exists: \"#{existing_by_checksum.title}\""
+      })
+    else
+      # Check for duplicate by title (same title in same workspace)
+      existing_by_title = Repo.one(
+        from(s in RawSource,
+          where: s.workspace_id == ^ws and s.title == ^title,
+          limit: 1
+        )
+      )
+
+      if existing_by_title do
+        # Title match but different content — warn but allow with flag
+        if Map.get(params, "force", false) do
+          do_ingest(conn, ws, type, title, content, params)
+        else
+          conn |> put_status(409) |> json(%{
+            error: "Duplicate title detected",
+            duplicate_of: %{
+              id: existing_by_title.id,
+              title: existing_by_title.title,
+              source_type: existing_by_title.source_type,
+              word_count: length(String.split(existing_by_title.content || ""))
+            },
+            message: "A source with the same title already exists. Set \"force\": true to upload anyway.",
+            new_word_count: length(String.split(content))
+          })
+        end
+      else
+        do_ingest(conn, ws, type, title, content, params)
+      end
+    end
+  end
+
+  defp do_ingest(conn, ws, type, title, content, params) do
     attrs = %{
       workspace_id: ws,
       source_type: type,
@@ -149,6 +204,77 @@ defmodule KnowledgeIndexWeb.KIController do
       end)
 
     json(conn, logs)
+  end
+
+  # List all sources for a workspace
+  def sources(conn, %{"workspace_id" => ws} = params) do
+    import Ecto.Query
+
+    limit =
+      case Integer.parse(Map.get(params, "limit", "100")) do
+        {n, _} -> n
+        :error -> 100
+      end
+
+    sources =
+      from(s in RawSource,
+        where: s.workspace_id == ^ws,
+        order_by: [desc: s.inserted_at],
+        limit: ^limit
+      )
+      |> Repo.all()
+      |> Enum.map(fn s ->
+        %{
+          id: s.id,
+          title: s.title,
+          source_type: s.source_type,
+          ingested_at: s.ingested_at,
+          wiki_pages_touched: s.wiki_pages_touched,
+          word_count: length(String.split(s.content || "")),
+          metadata: s.metadata,
+          inserted_at: s.inserted_at,
+          updated_at: s.updated_at
+        }
+      end)
+
+    json(conn, sources)
+  end
+
+  # Get a single source with content preview
+  def source_detail(conn, %{"id" => id}) do
+    case Repo.get(RawSource, id) do
+      nil ->
+        conn |> put_status(404) |> json(%{error: "Source not found"})
+      source ->
+        json(conn, %{
+          id: source.id,
+          title: source.title,
+          source_type: source.source_type,
+          content: source.content,
+          ingested_at: source.ingested_at,
+          wiki_pages_touched: source.wiki_pages_touched,
+          word_count: length(String.split(source.content || "")),
+          metadata: source.metadata,
+          checksum: source.checksum,
+          inserted_at: source.inserted_at,
+          updated_at: source.updated_at
+        })
+    end
+  end
+
+  # Delete a single source by ID
+  def delete_source(conn, %{"id" => id}) do
+    case Repo.get(RawSource, id) do
+      nil ->
+        conn |> put_status(404) |> json(%{error: "Source not found"})
+      source ->
+        case Repo.delete(source) do
+          {:ok, _} ->
+            json(conn, %{message: "Source deleted", id: source.id, title: source.title})
+          {:error, reason} ->
+            conn |> put_status(500) |> json(%{error: inspect(reason)})
+        end
+    end
   end
 
   # Reset a workspace: delete all sources, pages, log entries, and index entries
