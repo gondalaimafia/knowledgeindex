@@ -120,7 +120,7 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
   defp parse_markdown_sections(content) do
     content
     |> String.split("\n")
-    |> Enum.filter(&String.match?(&1, ~r/^#{1,3}\s/))
+    |> Enum.filter(&String.match?(&1, ~r/^\#{1,3}\s/))
     |> Enum.map(fn line ->
       level = line |> String.graphemes() |> Enum.take_while(&(&1 == "#")) |> length()
       title = String.replace(line, ~r/^#+\s*/, "")
