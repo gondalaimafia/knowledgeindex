@@ -245,7 +245,7 @@ defmodule KnowledgeIndex.Pipeline.Ingest do
         |> case do
           {:ok, %{id: nil}} ->
             Logger.info("[Ingest] Page #{attrs["slug"]} already exists, skipping create")
-            nil
+            attrs["slug"]
           {:ok, page} ->
             page.slug
           {:error, changeset} ->
