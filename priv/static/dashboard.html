@@ -1206,10 +1206,6 @@
     return d.innerHTML;
   }
 
-  function encodeJsString(value) {
-    return JSON.stringify(String(value == null ? '' : value));
-  }
-
   function safeCssToken(value) {
     return String(value || 'source').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
   }
@@ -1289,7 +1285,7 @@
       const tags = wikiPages.slice(0, 3).map(t => '<span class="source-tag">' + escHtml(t) + '</span>').join('');
       const moreTag = wikiPages.length > 3 ? '<span class="source-tag">+' + (wikiPages.length - 3) + '</span>' : '';
 
-      return '<div class="source-card" role="button" tabindex="0" onclick="openSourceDetail(' + encodeJsString(s.id) + ')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openSourceDetail(' + encodeJsString(s.id) + ')}">' +
+      return '<div class="source-card" role="button" tabindex="0" data-source-id="' + escHtml(s.id) + '">' +
         '<div class="source-card-header">' + typeBadge + ' ' + statusDot + '</div>' +
         '<div class="source-card-title">' + escHtml(s.title) + '</div>' +
         '<div class="source-card-preview">' + preview + '</div>' +
@@ -1297,7 +1293,20 @@
         '<div class="source-card-tags">' + tags + moreTag + '</div>' +
         '</div>';
     }).join('');
+    bindSourceCards();
     lucide.createIcons();
+  }
+
+  function bindSourceCards() {
+    document.querySelectorAll('.source-card').forEach(card => {
+      card.addEventListener('click', () => openSourceDetail(card.dataset.sourceId));
+      card.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openSourceDetail(card.dataset.sourceId);
+        }
+      });
+    });
   }
 
   function setSourcesLayout(mode) {
