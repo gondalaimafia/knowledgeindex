@@ -224,13 +224,15 @@ defmodule KnowledgeIndexWeb.KIController do
       )
       |> Repo.all()
       |> Enum.map(fn s ->
+        content_str = s.content || ""
         %{
           id: s.id,
           title: s.title,
           source_type: s.source_type,
           ingested_at: s.ingested_at,
           wiki_pages_touched: s.wiki_pages_touched,
-          word_count: length(String.split(s.content || "")),
+          word_count: length(String.split(content_str)),
+          content_preview: String.slice(content_str, 0, 250),
           metadata: s.metadata,
           inserted_at: s.inserted_at,
           updated_at: s.updated_at

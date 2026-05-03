@@ -371,6 +371,338 @@
     /* Hide views */
     .view { display: none; }
     .view.active { display: block; }
+
+    /* ===== Sources View ===== */
+
+    /* Source type badges */
+    .badge-prd { background: var(--teal-dim); color: var(--teal-bright); }
+    .badge-transcript { background: rgba(139,92,246,0.15); color: #8B5CF6; }
+    .badge-feedback { background: rgba(245,158,11,0.15); color: var(--warning); }
+    .badge-decision { background: rgba(16,185,129,0.15); color: var(--success); }
+    .badge-analytics { background: rgba(59,130,246,0.15); color: var(--info); }
+    .badge-competitive { background: rgba(239,68,68,0.15); color: var(--destructive); }
+    .badge-retro { background: rgba(236,72,153,0.15); color: #EC4899; }
+    .badge-slack_thread { background: rgba(138,138,138,0.15); color: var(--text-secondary); }
+    .badge-email { background: rgba(99,102,241,0.15); color: #6366F1; }
+
+    /* Status dots */
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .status-dot.indexed { background: var(--success); }
+    .status-dot.processing { background: var(--warning); }
+    .status-dot.failed { background: var(--destructive); }
+
+    /* Filter bar */
+    .sources-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .sources-toolbar .search-wrap { flex: 1; margin-bottom: 0; }
+    .sources-toolbar select {
+      padding: 9px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      outline: none;
+      cursor: pointer;
+      min-width: 140px;
+    }
+    .sources-toolbar select:focus { border-color: var(--teal); }
+    .toggle-group {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .toggle-group button {
+      background: var(--surface);
+      border: none;
+      padding: 8px 10px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    .toggle-group button.active { background: var(--teal-dim); color: var(--teal-bright); }
+    .toggle-group button + button { border-left: 1px solid var(--border); }
+
+    /* Source card grid */
+    .sources-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .sources-grid.list-mode {
+      grid-template-columns: 1fr;
+    }
+    .source-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .source-card:hover { border-color: var(--teal); transform: translateY(-1px); }
+    .source-card-header { display: flex; align-items: center; gap: 8px; }
+    .source-card-title {
+      font-weight: 600;
+      font-size: 14px;
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .source-card-preview {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .source-card-slug {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-tertiary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .source-card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
+    .source-tag {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      font-weight: 500;
+      background: var(--surface-raised);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    /* ===== Source Detail Modal ===== */
+    .source-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .source-modal-overlay.open { display: flex; }
+    .source-modal {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 100%;
+      max-width: 1100px;
+      max-height: 90vh;
+      display: grid;
+      grid-template-columns: 200px 1fr 260px;
+      overflow: hidden;
+    }
+    /* TOC panel */
+    .modal-toc {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      padding: 20px 12px;
+      overflow-y: auto;
+      max-height: 90vh;
+    }
+    .modal-toc-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+    .toc-item {
+      display: block;
+      padding: 4px 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: 3px;
+      cursor: pointer;
+      line-height: 1.4;
+      margin-bottom: 2px;
+    }
+    .toc-item:hover { background: var(--surface-raised); color: var(--text); }
+    .toc-item.depth-2 { padding-left: 16px; font-size: 11px; }
+    .toc-item.depth-3 { padding-left: 24px; font-size: 11px; color: var(--text-tertiary); }
+
+    /* Content panel */
+    .modal-body {
+      padding: 24px 32px;
+      overflow-y: auto;
+      max-height: 90vh;
+    }
+    .modal-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title { font-size: 20px; font-weight: 700; line-height: 1.3; }
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+    }
+    .modal-close:hover { background: var(--surface-raised); color: var(--text); }
+    /* Cross-references */
+    .cross-refs {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      margin-bottom: 20px;
+    }
+    .cross-refs-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-tertiary);
+      margin-bottom: 8px;
+    }
+    .cross-ref-link {
+      display: block;
+      color: var(--teal-bright);
+      font-size: 13px;
+      text-decoration: none;
+      padding: 2px 0;
+      cursor: pointer;
+    }
+    .cross-ref-link:hover { text-decoration: underline; }
+    /* Rendered markdown */
+    .md-content h1 { font-size: 20px; font-weight: 700; margin: 24px 0 12px; }
+    .md-content h2 { font-size: 17px; font-weight: 600; margin: 20px 0 10px; color: var(--text); }
+    .md-content h3 { font-size: 14px; font-weight: 600; margin: 16px 0 8px; color: var(--text-secondary); }
+    .md-content p { margin: 8px 0; font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+    .md-content ul, .md-content ol { margin: 8px 0; padding-left: 20px; }
+    .md-content li { font-size: 13px; line-height: 1.7; color: var(--text-secondary); margin: 2px 0; }
+    .md-content strong { color: var(--text); font-weight: 600; }
+    .md-content code {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--surface-raised);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--teal-bright);
+    }
+    .md-content pre {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .md-content pre code { background: none; padding: 0; }
+    .md-content table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 12px;
+    }
+    .md-content table th {
+      text-align: left;
+      padding: 8px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .md-content table td {
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .md-content blockquote {
+      border-left: 3px solid var(--teal);
+      padding: 4px 12px;
+      margin: 12px 0;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+    .md-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    /* Metadata sidebar */
+    .modal-meta {
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      padding: 20px 16px;
+      overflow-y: auto;
+      max-height: 90vh;
+      font-size: 12px;
+    }
+    .meta-field { margin-bottom: 16px; }
+    .meta-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-tertiary);
+      margin-bottom: 4px;
+    }
+    .meta-value { color: var(--text-secondary); line-height: 1.5; }
+    .meta-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    /* Modal navigation */
+    .modal-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-top: 1px solid var(--border);
+      grid-column: 1 / -1;
+      background: var(--surface);
+    }
+    .modal-nav button {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .modal-nav button:hover { border-color: var(--teal); color: var(--text); }
+    .modal-nav button:disabled { opacity: 0.3; cursor: default; }
+
+    @media (max-width: 900px) {
+      .source-modal { grid-template-columns: 1fr; }
+      .modal-toc, .modal-meta { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -404,6 +736,9 @@
     </button>
     <button class="nav-item" onclick="navigate('logs')" data-nav="logs">
       <i data-lucide="scroll-text"></i> Logs
+    </button>
+    <button class="nav-item" onclick="navigate('sources')" data-nav="sources">
+      <i data-lucide="database"></i> Sources
     </button>
     <button class="nav-item" onclick="navigate('health')" data-nav="health">
       <i data-lucide="heart-pulse"></i> Health
@@ -488,6 +823,43 @@
     </div>
   </div>
 
+  <!-- Sources View -->
+  <div id="view-sources" class="view">
+    <div class="section-header"><span class="slash">//</span> SOURCES</div>
+    <h1 class="page-title">Knowledge Sources</h1>
+
+    <div class="sources-toolbar">
+      <div class="search-wrap">
+        <i data-lucide="search" class="search-icon"></i>
+        <input type="text" id="sources-search" placeholder="Search sources..." oninput="filterSources()">
+      </div>
+      <select id="sources-type-filter" onchange="filterSources()">
+        <option value="">All types</option>
+        <option value="prd">PRD</option>
+        <option value="transcript">Transcript</option>
+        <option value="feedback">Feedback</option>
+        <option value="decision">Decision</option>
+        <option value="analytics">Analytics</option>
+        <option value="competitive">Competitive</option>
+        <option value="retro">Retro</option>
+        <option value="slack_thread">Slack Thread</option>
+        <option value="email">Email</option>
+      </select>
+      <div class="toggle-group">
+        <button class="active" onclick="setSourcesLayout('grid')" data-layout="grid" title="Grid view">
+          <i data-lucide="layout-grid" style="width:14px;height:14px"></i>
+        </button>
+        <button onclick="setSourcesLayout('list')" data-layout="list" title="List view">
+          <i data-lucide="list" style="width:14px;height:14px"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="sources-grid" class="sources-grid">
+      <div class="empty"><i data-lucide="loader" style="width:24px;height:24px"></i><p>Loading sources...</p></div>
+    </div>
+  </div>
+
   <!-- Health View -->
   <div id="view-health" class="view">
     <div class="section-header"><span class="slash">//</span> HEALTH CHECK</div>
@@ -515,6 +887,32 @@
   </div>
 </main>
 
+<!-- Source Detail Modal -->
+<div class="source-modal-overlay" id="source-modal" onclick="if(event.target===this)closeModal()">
+  <div class="source-modal">
+    <div class="modal-toc" id="modal-toc">
+      <div class="modal-toc-title">Table of Contents</div>
+      <div id="modal-toc-items"></div>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div class="modal-header">
+        <div class="modal-title" id="modal-title"></div>
+        <button class="modal-close" onclick="closeModal()" title="Close">
+          <i data-lucide="x" style="width:18px;height:18px"></i>
+        </button>
+      </div>
+      <div id="modal-cross-refs"></div>
+      <div class="md-content" id="modal-content"></div>
+    </div>
+    <div class="modal-meta" id="modal-meta"></div>
+    <div class="modal-nav">
+      <button onclick="navigateSource(-1)" id="modal-prev" disabled>&larr; Previous</button>
+      <span id="modal-position" style="font-size:11px;color:var(--text-tertiary)"></span>
+      <button onclick="navigateSource(1)" id="modal-next">Next &rarr;</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // Init Lucide icons
   lucide.createIcons();
@@ -535,6 +933,7 @@
 
     if (view === 'dashboard') loadDashboard();
     if (view === 'pages') loadPages();
+    if (view === 'sources') loadSources();
     if (view === 'logs') loadLogs();
     if (view === 'health') loadHealth();
 
@@ -716,9 +1115,328 @@
     return d.innerHTML;
   }
 
+  // ===== Sources =====
+  let allSources = [];
+  let currentSourceIdx = -1;
+  let sourcesLayout = 'grid';
+
+  async function loadSources() {
+    const ws = getWs();
+    const data = await api('/api/sources?workspace_id=' + ws + '&limit=500');
+    if (!data || data.length === 0) {
+      allSources = [];
+      document.getElementById('sources-grid').innerHTML = '<div class="empty"><i data-lucide="database" style="width:32px;height:32px"></i><p>No sources yet. Ingest documents via the API or file upload.</p></div>';
+      lucide.createIcons();
+      return;
+    }
+    allSources = data;
+    renderSourceCards(data);
+  }
+
+  function filterSources() {
+    const q = (document.getElementById('sources-search').value || '').toLowerCase();
+    const typeFilter = document.getElementById('sources-type-filter').value;
+    const filtered = allSources.filter(s => {
+      const matchesType = !typeFilter || s.source_type === typeFilter;
+      const matchesSearch = !q || s.title.toLowerCase().includes(q) || (s.source_type || '').toLowerCase().includes(q);
+      return matchesType && matchesSearch;
+    });
+    renderSourceCards(filtered);
+  }
+
+  function renderSourceCards(sources) {
+    if (sources.length === 0) {
+      document.getElementById('sources-grid').innerHTML = '<div class="empty"><p>No sources match your filters.</p></div>';
+      return;
+    }
+    const grid = document.getElementById('sources-grid');
+    grid.className = 'sources-grid' + (sourcesLayout === 'list' ? ' list-mode' : '');
+    grid.innerHTML = sources.map((s, idx) => {
+      const typeBadge = '<span class="badge badge-' + (s.source_type || 'source') + '">' + escHtml(s.source_type || 'unknown').toUpperCase() + '</span>';
+      const statusClass = s.ingested_at ? 'indexed' : 'processing';
+      const statusDot = '<span class="status-dot ' + statusClass + '" title="' + (s.ingested_at ? 'Indexed' : 'Processing') + '"></span>';
+      const preview = s.content_preview ? escHtml(s.content_preview.substring(0, 200)) : '';
+      const date = s.inserted_at ? new Date(s.inserted_at).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : '';
+      const words = s.word_count ? s.word_count.toLocaleString() + ' words' : '';
+      const wikiPages = (s.wiki_pages_touched || []);
+      const tags = wikiPages.slice(0, 3).map(t => '<span class="source-tag">' + escHtml(t) + '</span>').join('');
+      const moreTag = wikiPages.length > 3 ? '<span class="source-tag">+' + (wikiPages.length - 3) + '</span>' : '';
+
+      return '<div class="source-card" onclick="openSourceDetail(\'' + s.id + '\')">' +
+        '<div class="source-card-header">' + typeBadge + ' ' + statusDot + '</div>' +
+        '<div class="source-card-title">' + escHtml(s.title) + '</div>' +
+        '<div class="source-card-preview">' + preview + '</div>' +
+        '<div class="source-card-slug">' + escHtml(words) + (date ? ' · ' + date : '') + '</div>' +
+        '<div class="source-card-tags">' + tags + moreTag + '</div>' +
+        '</div>';
+    }).join('');
+    lucide.createIcons();
+  }
+
+  function setSourcesLayout(mode) {
+    sourcesLayout = mode;
+    document.querySelectorAll('.toggle-group button').forEach(b => {
+      b.classList.toggle('active', b.dataset.layout === mode);
+    });
+    filterSources();
+  }
+
+  // ===== Source Detail Modal =====
+  async function openSourceDetail(id) {
+    const source = await api('/api/sources/' + id);
+    if (!source) return;
+
+    currentSourceIdx = allSources.findIndex(s => s.id === id);
+
+    // Title
+    document.getElementById('modal-title').textContent = source.title;
+
+    // Cross-references (wiki pages touched)
+    const wikiPages = source.wiki_pages_touched || [];
+    if (wikiPages.length > 0) {
+      document.getElementById('modal-cross-refs').innerHTML =
+        '<div class="cross-refs"><div class="cross-refs-title">Cross-References</div>' +
+        wikiPages.map(slug => '<a class="cross-ref-link">' + escHtml(slug) + '</a>').join('') +
+        '</div>';
+    } else {
+      document.getElementById('modal-cross-refs').innerHTML = '';
+    }
+
+    // Render markdown content
+    const html = renderMarkdown(source.content || '');
+    document.getElementById('modal-content').innerHTML = html;
+
+    // Build TOC from content headings
+    const toc = extractTOC(source.content || '');
+    document.getElementById('modal-toc-items').innerHTML = toc.map((item, i) => {
+      return '<a class="toc-item depth-' + item.depth + '" onclick="scrollToHeading(' + i + ')">' + escHtml(item.text) + '</a>';
+    }).join('');
+
+    // Metadata sidebar
+    const statusLabel = source.ingested_at ? 'Indexed' : 'Processing';
+    const statusBadgeColor = source.ingested_at ? 'var(--success)' : 'var(--warning)';
+    const typeBadgeClass = 'badge-' + (source.source_type || 'source');
+    const insertDate = source.inserted_at ? new Date(source.inserted_at).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) : 'N/A';
+    const updateDate = source.updated_at ? new Date(source.updated_at).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) : 'N/A';
+    const capturedAt = source.inserted_at ? new Date(source.inserted_at).toLocaleString() : 'N/A';
+    const author = (source.metadata && source.metadata.author) || 'Unknown';
+    const origin = (source.metadata && source.metadata.origin) || 'Upload';
+    const context = (source.metadata && source.metadata.context) || '';
+
+    document.getElementById('modal-meta').innerHTML =
+      '<div class="meta-field"><div class="meta-label">Status</div><div class="meta-value"><span class="meta-badge" style="background:' + statusBadgeColor + '22;color:' + statusBadgeColor + '">' + statusLabel + '</span></div></div>' +
+      '<div class="meta-field"><div class="meta-label">Source Type</div><div class="meta-value"><span class="badge ' + typeBadgeClass + '">' + escHtml(source.source_type || '').toUpperCase() + '</span></div></div>' +
+      '<div class="meta-field"><div class="meta-label">Topics</div><div class="meta-value">' +
+        wikiPages.map(s => '<span class="source-tag" style="margin:1px">' + escHtml(s) + '</span>').join('') +
+        (wikiPages.length === 0 ? '<span style="color:var(--text-tertiary)">None</span>' : '') +
+      '</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Captured By</div><div class="meta-value">' + escHtml(author) + '</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Category</div><div class="meta-value"><span class="badge ' + typeBadgeClass + '">' + escHtml(source.source_type || '').toUpperCase() + '</span></div></div>' +
+      '<div class="meta-field"><div class="meta-label">Date</div><div class="meta-value">' + insertDate + '</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Document Status</div><div class="meta-value"><span class="status-dot ' + (source.ingested_at ? 'indexed' : 'processing') + '"></span> ' + (source.ingested_at ? 'indexed' : 'processing') + '</div></div>' +
+      (context ? '<div class="meta-field"><div class="meta-label">Context</div><div class="meta-value">' + escHtml(context) + '</div></div>' : '') +
+      '<div class="meta-field"><div class="meta-label">Origin</div><div class="meta-value">' + escHtml(origin) + '</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Word Count</div><div class="meta-value">' + (source.word_count || 0).toLocaleString() + '</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Checksum</div><div class="meta-value" style="font-family:var(--font-mono);font-size:10px;word-break:break-all">' + escHtml((source.checksum || '').substring(0, 16)) + '...</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Captured At</div><div class="meta-value">' + capturedAt + '</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Captured Via</div><div class="meta-value">API</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Title</div><div class="meta-value">' + escHtml(source.title) + '</div></div>' +
+      '<div class="meta-field"><div class="meta-label">Updated</div><div class="meta-value">' + updateDate + '</div></div>';
+
+    // Navigation
+    updateModalNav();
+
+    // Open
+    document.getElementById('source-modal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+    lucide.createIcons();
+  }
+
+  function closeModal() {
+    document.getElementById('source-modal').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  function updateModalNav() {
+    const prev = document.getElementById('modal-prev');
+    const next = document.getElementById('modal-next');
+    const pos = document.getElementById('modal-position');
+    prev.disabled = currentSourceIdx <= 0;
+    next.disabled = currentSourceIdx >= allSources.length - 1;
+    pos.textContent = (currentSourceIdx + 1) + ' of ' + allSources.length;
+  }
+
+  function navigateSource(dir) {
+    const newIdx = currentSourceIdx + dir;
+    if (newIdx >= 0 && newIdx < allSources.length) {
+      openSourceDetail(allSources[newIdx].id);
+    }
+  }
+
+  function scrollToHeading(idx) {
+    const headings = document.querySelectorAll('#modal-content h1, #modal-content h2, #modal-content h3');
+    if (headings[idx]) {
+      headings[idx].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  // Keyboard: Escape closes modal, arrow keys navigate
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('source-modal').classList.contains('open')) return;
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'ArrowLeft') navigateSource(-1);
+    if (e.key === 'ArrowRight') navigateSource(1);
+  });
+
+  // ===== Markdown Renderer =====
+  function renderMarkdown(text) {
+    if (!text) return '';
+    let html = '';
+    const lines = text.split('\n');
+    let inCodeBlock = false;
+    let codeBuffer = [];
+    let inTable = false;
+    let tableRows = [];
+    let inList = false;
+    let listType = '';
+    let listItems = [];
+
+    function flushList() {
+      if (!inList) return;
+      const tag = listType === 'ol' ? 'ol' : 'ul';
+      html += '<' + tag + '>' + listItems.join('') + '</' + tag + '>';
+      inList = false;
+      listItems = [];
+    }
+
+    function flushTable() {
+      if (!inTable) return;
+      let t = '<table>';
+      tableRows.forEach((row, i) => {
+        const cells = row.split('|').filter(c => c.trim() !== '');
+        if (i === 0) {
+          t += '<thead><tr>' + cells.map(c => '<th>' + inlineFormat(c.trim()) + '</th>').join('') + '</tr></thead><tbody>';
+        } else if (i === 1 && /^[\s\-|:]+$/.test(row)) {
+          // separator row, skip
+        } else {
+          t += '<tr>' + cells.map(c => '<td>' + inlineFormat(c.trim()) + '</td>').join('') + '</tr>';
+        }
+      });
+      t += '</tbody></table>';
+      html += t;
+      inTable = false;
+      tableRows = [];
+    }
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Code blocks
+      if (line.trim().startsWith('```')) {
+        if (inCodeBlock) {
+          html += '<pre><code>' + escHtml(codeBuffer.join('\n')) + '</code></pre>';
+          codeBuffer = [];
+          inCodeBlock = false;
+        } else {
+          flushList();
+          flushTable();
+          inCodeBlock = true;
+        }
+        continue;
+      }
+      if (inCodeBlock) { codeBuffer.push(line); continue; }
+
+      // Blank lines
+      if (line.trim() === '') { flushList(); flushTable(); continue; }
+
+      // Tables
+      if (line.trim().startsWith('|') || (line.includes('|') && line.trim().split('|').length >= 3)) {
+        flushList();
+        inTable = true;
+        tableRows.push(line);
+        continue;
+      }
+      if (inTable) { flushTable(); }
+
+      // Headings
+      const hMatch = line.match(/^(#{1,6})\s+(.+)/);
+      if (hMatch) {
+        flushList();
+        const level = hMatch[1].length;
+        html += '<h' + level + '>' + inlineFormat(hMatch[2]) + '</h' + level + '>';
+        continue;
+      }
+
+      // Horizontal rule
+      if (/^(\*{3,}|-{3,}|_{3,})$/.test(line.trim())) {
+        flushList();
+        html += '<hr>';
+        continue;
+      }
+
+      // Blockquote
+      if (line.trim().startsWith('> ')) {
+        flushList();
+        html += '<blockquote>' + inlineFormat(line.trim().substring(2)) + '</blockquote>';
+        continue;
+      }
+
+      // Unordered list
+      const ulMatch = line.match(/^(\s*)[*\-+]\s+(.+)/);
+      if (ulMatch) {
+        if (!inList || listType !== 'ul') { flushList(); inList = true; listType = 'ul'; }
+        listItems.push('<li>' + inlineFormat(ulMatch[2]) + '</li>');
+        continue;
+      }
+
+      // Ordered list
+      const olMatch = line.match(/^(\s*)\d+\.\s+(.+)/);
+      if (olMatch) {
+        if (!inList || listType !== 'ol') { flushList(); inList = true; listType = 'ol'; }
+        listItems.push('<li>' + inlineFormat(olMatch[2]) + '</li>');
+        continue;
+      }
+
+      // Paragraph
+      flushList();
+      html += '<p>' + inlineFormat(line) + '</p>';
+    }
+
+    flushList();
+    flushTable();
+    if (inCodeBlock) {
+      html += '<pre><code>' + escHtml(codeBuffer.join('\n')) + '</code></pre>';
+    }
+
+    return html;
+  }
+
+  function inlineFormat(text) {
+    return escHtml(text)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/__(.+?)__/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/_(.+?)_/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code>$1</code>')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:var(--teal-bright)" target="_blank">$1</a>');
+  }
+
+  function extractTOC(text) {
+    if (!text) return [];
+    const toc = [];
+    text.split('\n').forEach(line => {
+      const m = line.match(/^(#{1,3})\s+(.+)/);
+      if (m) {
+        toc.push({ depth: m[1].length, text: m[2].replace(/\*\*/g, '').replace(/`/g, '') });
+      }
+    });
+    return toc;
+  }
+
   function refreshAll() {
     if (currentView === 'dashboard') loadDashboard();
     if (currentView === 'pages') loadPages();
+    if (currentView === 'sources') loadSources();
     if (currentView === 'logs') loadLogs();
     if (currentView === 'health') loadHealth();
   }
