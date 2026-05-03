@@ -346,6 +346,18 @@
     }
 
     .ws-input input:focus { border-color: var(--teal); }
+    .ws-input input.invalid { border-color: var(--destructive); color: var(--destructive); }
+    .ws-hint {
+      color: var(--text-tertiary);
+      font-size: 11px;
+    }
+    .ws-error {
+      display: none;
+      margin: -14px 0 20px;
+      color: var(--destructive);
+      font-size: 12px;
+    }
+    .ws-error.show { display: block; }
 
     /* Empty state */
     .empty {
@@ -355,6 +367,7 @@
     }
 
     .empty i { margin-bottom: 12px; opacity: 0.4; }
+    .empty.error { color: var(--destructive); }
 
     /* Health */
     .health-ok { color: var(--success); }
@@ -429,6 +442,12 @@
     }
     .toggle-group button.active { background: var(--teal-dim); color: var(--teal-bright); }
     .toggle-group button + button { border-left: 1px solid var(--border); }
+    .sources-summary {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin: -8px 0 16px;
+    }
 
     /* Source card grid */
     .sources-grid {
@@ -755,8 +774,10 @@
   <!-- Workspace selector -->
   <div class="ws-input">
     <label>workspace_id:</label>
-    <input type="text" id="ws-id" value="default" onchange="refreshAll()">
+    <input type="text" id="ws-id" value="00000000-0000-0000-0000-000000000001" onchange="refreshAll()">
+    <span class="ws-hint">default product-console workspace</span>
   </div>
+  <div class="ws-error" id="ws-error"></div>
 
   <!-- Dashboard View -->
   <div id="view-dashboard" class="view active">
@@ -855,6 +876,7 @@
       </div>
     </div>
 
+    <div class="sources-summary" id="sources-summary"></div>
     <div id="sources-grid" class="sources-grid">
       <div class="empty"><i data-lucide="loader" style="width:24px;height:24px"></i><p>Loading sources...</p></div>
     </div>
@@ -920,8 +942,32 @@
   // State
   let currentView = 'dashboard';
   let searchTimeout;
+  const DEFAULT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000001';
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  function getWs() { return document.getElementById('ws-id').value || 'default'; }
+  function getWs() { return normalizeWorkspaceId(document.getElementById('ws-id').value); }
+
+  function normalizeWorkspaceId(value) {
+    const trimmed = (value || '').trim();
+    if (!trimmed || trimmed.toLowerCase() === 'default') return DEFAULT_WORKSPACE_ID;
+    return trimmed;
+  }
+
+  function validateWorkspace() {
+    const input = document.getElementById('ws-id');
+    const error = document.getElementById('ws-error');
+    const ws = getWs();
+    const valid = UUID_RE.test(ws);
+    input.classList.toggle('invalid', !valid);
+    if (!valid) {
+      error.textContent = 'Enter a full workspace UUID. Example: ' + DEFAULT_WORKSPACE_ID;
+      error.classList.add('show');
+    } else {
+      error.textContent = '';
+      error.classList.remove('show');
+    }
+    return valid;
+  }
 
   // Navigation
   function navigate(view) {
@@ -945,36 +991,56 @@
   async function api(path) {
     try {
       const res = await fetch(path);
-      if (!res.ok) throw new Error(res.statusText);
+      if (!res.ok) {
+        let message = res.statusText || ('HTTP ' + res.status);
+        try {
+          const body = await res.json();
+          message = body.error || body.message || message;
+        } catch (_) {}
+        throw new Error(message);
+      }
       return await res.json();
     } catch (e) {
       console.error('API error:', path, e);
-      return null;
+      return { __error: true, message: e.message || 'Request failed' };
     }
+  }
+
+  function isApiError(value) {
+    return value && value.__error;
+  }
+
+  function renderError(message) {
+    return '<div class="empty error"><i data-lucide="circle-alert" style="width:32px;height:32px"></i><p>' + escHtml(message || 'Request failed') + '</p></div>';
   }
 
   // Dashboard
   async function loadDashboard() {
+    if (!validateWorkspace()) return;
     const ws = getWs();
     const [stats, health, logs] = await Promise.all([
-      api('/api/stats?workspace_id=' + ws),
+      api('/api/stats?workspace_id=' + encodeURIComponent(ws)),
       api('/api/health'),
-      api('/api/logs?workspace_id=' + ws + '&limit=5')
+      api('/api/logs?workspace_id=' + encodeURIComponent(ws) + '&limit=5')
     ]);
 
-    if (stats) {
+    if (isApiError(stats)) {
+      document.getElementById('dashboard-logs').innerHTML = renderError(stats.message);
+    } else if (stats) {
       document.getElementById('stat-pages').textContent = stats.page_count ?? 0;
       document.getElementById('stat-sources').textContent = stats.source_count ?? 0;
       document.getElementById('stat-stale').textContent = stats.stale_count ?? 0;
     }
 
-    if (health) {
+    if (health && !isApiError(health)) {
       const el = document.getElementById('stat-health');
       el.textContent = health.status === 'ok' ? 'OK' : 'ERR';
       el.className = 'stat-value ' + (health.status === 'ok' ? 'health-ok' : 'health-err');
     }
 
-    if (logs && logs.length > 0) {
+    if (isApiError(logs)) {
+      document.getElementById('dashboard-logs').innerHTML = renderError(logs.message);
+    } else if (logs && logs.length > 0) {
       document.getElementById('dashboard-logs').innerHTML = renderLogs(logs);
     } else {
       document.getElementById('dashboard-logs').innerHTML = '<div class="empty"><p>No activity yet. Ingest a document to get started.</p></div>';
@@ -984,8 +1050,15 @@
 
   // Pages
   async function loadPages() {
+    if (!validateWorkspace()) return;
     const ws = getWs();
-    const data = await api('/api/index?workspace_id=' + ws);
+    const data = await api('/api/index?workspace_id=' + encodeURIComponent(ws));
+
+    if (isApiError(data)) {
+      document.getElementById('pages-content').innerHTML = renderError(data.message);
+      lucide.createIcons();
+      return;
+    }
 
     if (!data || data.length === 0) {
       document.getElementById('pages-content').innerHTML = '<div class="empty"><i data-lucide="brain" style="width:32px;height:32px"></i><p>No wiki pages yet. Ingest documents via the API.</p></div>';
@@ -995,10 +1068,12 @@
 
     let html = '';
     data.forEach(group => {
-      html += '<div class="section-header" style="margin-top:24px;margin-bottom:8px"><span class="slash">//</span> ' + group.category.toUpperCase() + ' <span style="color:var(--text-tertiary)">(' + group.pages.length + ')</span></div>';
+      const category = String(group.category || 'uncategorized');
+      html += '<div class="section-header" style="margin-top:24px;margin-bottom:8px"><span class="slash">//</span> ' + escHtml(category.toUpperCase()) + ' <span style="color:var(--text-tertiary)">(' + group.pages.length + ')</span></div>';
       html += '<div class="table-wrap"><table><thead><tr><th>Title</th><th>Summary</th></tr></thead><tbody>';
       group.pages.forEach(p => {
-        const badge = '<span class="badge badge-' + (group.category === 'entities' ? 'entity' : group.category.slice(0,-1)) + '">' + (p.page_type || group.category) + '</span>';
+        const badgeType = p.page_type || category;
+        const badge = '<span class="badge badge-' + safeCssToken(category === 'entities' ? 'entity' : category.slice(0,-1)) + '">' + escHtml(badgeType) + '</span>';
         html += '<tr><td style="font-weight:500">' + escHtml(p.title) + ' ' + badge + '</td><td style="color:var(--text-secondary);font-size:12px">' + escHtml(p.summary || '') + '</td></tr>';
       });
       html += '</tbody></table></div>';
@@ -1015,6 +1090,7 @@
   }
 
   async function doSearch() {
+    if (!validateWorkspace()) return;
     const q = document.getElementById('search-input').value.trim();
     if (q.length < 2) {
       document.getElementById('search-results').innerHTML = '<div class="empty"><p>Type at least 2 characters to search.</p></div>';
@@ -1022,7 +1098,13 @@
     }
 
     const ws = getWs();
-    const results = await api('/api/search?workspace_id=' + ws + '&query=' + encodeURIComponent(q));
+    const results = await api('/api/search?workspace_id=' + encodeURIComponent(ws) + '&query=' + encodeURIComponent(q));
+
+    if (isApiError(results)) {
+      document.getElementById('search-results').innerHTML = renderError(results.message);
+      lucide.createIcons();
+      return;
+    }
 
     if (!results || results.length === 0) {
       document.getElementById('search-results').innerHTML = '<div class="empty"><p>No results for "' + escHtml(q) + '"</p></div>';
@@ -1031,7 +1113,7 @@
 
     let html = '<div class="table-wrap"><table><thead><tr><th>Title</th><th>Type</th><th>Summary</th></tr></thead><tbody>';
     results.forEach(r => {
-      const badgeClass = 'badge-' + (r.page_type || 'source').replace('_', '-');
+      const badgeClass = 'badge-' + safeCssToken(r.page_type || 'source');
       html += '<tr><td style="font-weight:500">' + escHtml(r.title) + '</td><td><span class="badge ' + badgeClass + '">' + escHtml(r.page_type || '') + '</span></td><td style="color:var(--text-secondary);font-size:12px">' + escHtml(r.summary || '') + '</td></tr>';
     });
     html += '</tbody></table></div>';
@@ -1041,8 +1123,15 @@
 
   // Logs
   async function loadLogs() {
+    if (!validateWorkspace()) return;
     const ws = getWs();
-    const logs = await api('/api/logs?workspace_id=' + ws + '&limit=50');
+    const logs = await api('/api/logs?workspace_id=' + encodeURIComponent(ws) + '&limit=50');
+
+    if (isApiError(logs)) {
+      document.getElementById('logs-content').innerHTML = renderError(logs.message);
+      lucide.createIcons();
+      return;
+    }
 
     if (!logs || logs.length === 0) {
       document.getElementById('logs-content').innerHTML = '<div class="empty"><p>No log entries yet.</p></div>';
@@ -1063,19 +1152,20 @@
 
   // Health
   async function loadHealth() {
+    if (!validateWorkspace()) return;
     const ws = getWs();
     const [health, stats] = await Promise.all([
       api('/api/health'),
-      api('/api/stats?workspace_id=' + ws)
+      api('/api/stats?workspace_id=' + encodeURIComponent(ws))
     ]);
 
-    if (health) {
+    if (health && !isApiError(health)) {
       const el = document.getElementById('health-api');
       el.textContent = health.status === 'ok' ? 'OK' : 'ERROR';
       el.className = 'stat-value ' + (health.status === 'ok' ? 'health-ok' : 'health-err');
     }
 
-    if (stats) {
+    if (stats && !isApiError(stats)) {
       const el = document.getElementById('health-pages');
       el.textContent = stats.page_count ?? 0;
       if (stats.stale_count > 0) {
@@ -1089,6 +1179,7 @@
   }
 
   async function runLint() {
+    if (!validateWorkspace()) return;
     const ws = getWs();
     const el = document.getElementById('lint-status');
     el.textContent = 'Running lint...';
@@ -1111,8 +1202,25 @@
   // Utilities
   function escHtml(str) {
     const d = document.createElement('div');
-    d.textContent = str;
+    d.textContent = str == null ? '' : String(str);
     return d.innerHTML;
+  }
+
+  function encodeJsString(value) {
+    return JSON.stringify(String(value == null ? '' : value));
+  }
+
+  function safeCssToken(value) {
+    return String(value || 'source').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+  }
+
+  function safeUrl(value) {
+    try {
+      const url = new URL(value, window.location.origin);
+      return ['http:', 'https:', 'mailto:'].includes(url.protocol) ? url.href : '';
+    } catch (_) {
+      return '';
+    }
   }
 
   // ===== Sources =====
@@ -1121,8 +1229,17 @@
   let sourcesLayout = 'grid';
 
   async function loadSources() {
+    if (!validateWorkspace()) return;
     const ws = getWs();
-    const data = await api('/api/sources?workspace_id=' + ws + '&limit=500');
+    const data = await api('/api/sources?workspace_id=' + encodeURIComponent(ws) + '&limit=500');
+    const summary = document.getElementById('sources-summary');
+    summary.textContent = '';
+    if (isApiError(data)) {
+      allSources = [];
+      document.getElementById('sources-grid').innerHTML = renderError(data.message);
+      lucide.createIcons();
+      return;
+    }
     if (!data || data.length === 0) {
       allSources = [];
       document.getElementById('sources-grid').innerHTML = '<div class="empty"><i data-lucide="database" style="width:32px;height:32px"></i><p>No sources yet. Ingest documents via the API or file upload.</p></div>';
@@ -1138,7 +1255,13 @@
     const typeFilter = document.getElementById('sources-type-filter').value;
     const filtered = allSources.filter(s => {
       const matchesType = !typeFilter || s.source_type === typeFilter;
-      const matchesSearch = !q || s.title.toLowerCase().includes(q) || (s.source_type || '').toLowerCase().includes(q);
+      const haystack = [
+        s.title,
+        s.source_type,
+        s.content_preview,
+        (s.wiki_pages_touched || []).join(' ')
+      ].join(' ').toLowerCase();
+      const matchesSearch = !q || haystack.includes(q);
       return matchesType && matchesSearch;
     });
     renderSourceCards(filtered);
@@ -1146,13 +1269,17 @@
 
   function renderSourceCards(sources) {
     if (sources.length === 0) {
+      document.getElementById('sources-summary').textContent = allSources.length ? '0 of ' + allSources.length.toLocaleString() + ' sources' : '';
       document.getElementById('sources-grid').innerHTML = '<div class="empty"><p>No sources match your filters.</p></div>';
       return;
     }
     const grid = document.getElementById('sources-grid');
+    document.getElementById('sources-summary').textContent =
+      sources.length.toLocaleString() + ' of ' + allSources.length.toLocaleString() + ' sources';
     grid.className = 'sources-grid' + (sourcesLayout === 'list' ? ' list-mode' : '');
     grid.innerHTML = sources.map((s, idx) => {
-      const typeBadge = '<span class="badge badge-' + (s.source_type || 'source') + '">' + escHtml(s.source_type || 'unknown').toUpperCase() + '</span>';
+      const typeClass = safeCssToken(s.source_type || 'source');
+      const typeBadge = '<span class="badge badge-' + typeClass + '">' + escHtml(s.source_type || 'unknown').toUpperCase() + '</span>';
       const statusClass = s.ingested_at ? 'indexed' : 'processing';
       const statusDot = '<span class="status-dot ' + statusClass + '" title="' + (s.ingested_at ? 'Indexed' : 'Processing') + '"></span>';
       const preview = s.content_preview ? escHtml(s.content_preview.substring(0, 200)) : '';
@@ -1162,7 +1289,7 @@
       const tags = wikiPages.slice(0, 3).map(t => '<span class="source-tag">' + escHtml(t) + '</span>').join('');
       const moreTag = wikiPages.length > 3 ? '<span class="source-tag">+' + (wikiPages.length - 3) + '</span>' : '';
 
-      return '<div class="source-card" onclick="openSourceDetail(\'' + s.id + '\')">' +
+      return '<div class="source-card" role="button" tabindex="0" onclick="openSourceDetail(' + encodeJsString(s.id) + ')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();openSourceDetail(' + encodeJsString(s.id) + ')}">' +
         '<div class="source-card-header">' + typeBadge + ' ' + statusDot + '</div>' +
         '<div class="source-card-title">' + escHtml(s.title) + '</div>' +
         '<div class="source-card-preview">' + preview + '</div>' +
@@ -1183,8 +1310,14 @@
 
   // ===== Source Detail Modal =====
   async function openSourceDetail(id) {
-    const source = await api('/api/sources/' + id);
+    const ws = getWs();
+    const source = await api('/api/sources/' + encodeURIComponent(id) + '?workspace_id=' + encodeURIComponent(ws));
     if (!source) return;
+    if (isApiError(source)) {
+      document.getElementById('sources-grid').insertAdjacentHTML('afterbegin', renderError(source.message));
+      lucide.createIcons();
+      return;
+    }
 
     currentSourceIdx = allSources.findIndex(s => s.id === id);
 
@@ -1215,7 +1348,7 @@
     // Metadata sidebar
     const statusLabel = source.ingested_at ? 'Indexed' : 'Processing';
     const statusBadgeColor = source.ingested_at ? 'var(--success)' : 'var(--warning)';
-    const typeBadgeClass = 'badge-' + (source.source_type || 'source');
+    const typeBadgeClass = 'badge-' + safeCssToken(source.source_type || 'source');
     const insertDate = source.inserted_at ? new Date(source.inserted_at).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) : 'N/A';
     const updateDate = source.updated_at ? new Date(source.updated_at).toLocaleDateString('en-US', {month:'long', day:'numeric', year:'numeric'}) : 'N/A';
     const capturedAt = source.inserted_at ? new Date(source.inserted_at).toLocaleString() : 'N/A';
@@ -1418,7 +1551,10 @@
       .replace(/\*(.+?)\*/g, '<em>$1</em>')
       .replace(/_(.+?)_/g, '<em>$1</em>')
       .replace(/`(.+?)`/g, '<code>$1</code>')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color:var(--teal-bright)" target="_blank">$1</a>');
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, href) => {
+        const url = safeUrl(href);
+        return url ? '<a href="' + escHtml(url) + '" style="color:var(--teal-bright)" target="_blank" rel="noopener noreferrer">' + label + '</a>' : label;
+      });
   }
 
   function extractTOC(text) {

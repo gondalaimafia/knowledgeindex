@@ -4,6 +4,13 @@ defmodule KnowledgeIndexWeb.KIController do
   alias KnowledgeIndex.{Pipeline, Wiki, Repo}
   alias KnowledgeIndex.Schema.RawSource
 
+  defp parse_limit(params, default, max) do
+    case Integer.parse(Map.get(params, "limit", Integer.to_string(default))) do
+      {n, _} when n > 0 -> min(n, max)
+      _ -> default
+    end
+  end
+
   def health(conn, _params) do
     json(conn, %{status: "ok", service: "knowledge-index"})
   end
@@ -94,11 +101,7 @@ defmodule KnowledgeIndexWeb.KIController do
 
   def search(conn, %{"workspace_id" => ws, "query" => query} = params) do
     page_type = Map.get(params, "page_type")
-    limit =
-      case Integer.parse(Map.get(params, "limit", "10")) do
-        {n, _} -> n
-        :error -> 10
-      end
+    limit = parse_limit(params, 10, 50)
 
     # Simple search via index for now
     {:ok, index} = Wiki.load_index(ws)
@@ -180,11 +183,7 @@ defmodule KnowledgeIndexWeb.KIController do
   def logs(conn, %{"workspace_id" => ws} = params) do
     import Ecto.Query
 
-    limit =
-      case Integer.parse(Map.get(params, "limit", "50")) do
-        {n, _} -> n
-        :error -> 50
-      end
+    limit = parse_limit(params, 50, 100)
 
     logs =
       from(l in KnowledgeIndex.Schema.LogEntry,
@@ -210,11 +209,7 @@ defmodule KnowledgeIndexWeb.KIController do
   def sources(conn, %{"workspace_id" => ws} = params) do
     import Ecto.Query
 
-    limit =
-      case Integer.parse(Map.get(params, "limit", "100")) do
-        {n, _} -> n
-        :error -> 100
-      end
+    limit = parse_limit(params, 100, 500)
 
     sources =
       from(s in RawSource,
@@ -243,8 +238,21 @@ defmodule KnowledgeIndexWeb.KIController do
   end
 
   # Get a single source with content preview
-  def source_detail(conn, %{"id" => id}) do
-    case Repo.get(RawSource, id) do
+  def source_detail(conn, %{"id" => id} = params) do
+    import Ecto.Query
+
+    query =
+      from(s in RawSource,
+        where: s.id == ^id
+      )
+
+    query =
+      case Map.get(params, "workspace_id") do
+        nil -> query
+        ws -> from(s in query, where: s.workspace_id == ^ws)
+      end
+
+    case Repo.one(query) do
       nil ->
         conn |> put_status(404) |> json(%{error: "Source not found"})
       source ->
