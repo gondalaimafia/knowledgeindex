@@ -18,7 +18,16 @@ defmodule KnowledgeIndex.Schema.RawSource do
   - retro: sprint or feature retrospective
   """
 
-  @source_types ~w(prd transcript feedback decision analytics competitive retro slack_thread email)
+  @source_types ~w(
+    artifact prd one_pager roadmap strategy_doc vision_doc okr decision
+    user_research user_interview usability_test survey_results persona
+    competitive market_research feedback customer_call support_ticket
+    nps_verbatim case_study spec adr design_doc runbook changelog
+    post_mortem transcript meeting_notes retro email slack_thread
+    pitch_deck sales_playbook pricing_doc go_to_market internal_doc
+    user_guide faq onboarding_doc policy analytics metric_doc
+    dashboard_export other
+  )
 
   schema "raw_sources" do
     field :workspace_id, :binary_id
