@@ -1,6 +1,8 @@
 defmodule KnowledgeIndexWeb.KIController do
   use Phoenix.Controller, formats: [:json]
 
+  import Ecto.Query
+
   alias KnowledgeIndex.{Pipeline, Wiki, Repo}
   alias KnowledgeIndex.Schema.RawSource
 
@@ -79,8 +81,75 @@ defmodule KnowledgeIndexWeb.KIController do
     json(conn, grouped)
   end
 
+  def sources(conn, %{"workspace_id" => ws} = params) do
+    limit =
+      params
+      |> Map.get("limit", "100")
+      |> parse_limit()
+
+    sources =
+      RawSource
+      |> where([s], s.workspace_id == ^ws)
+      |> order_by([s], desc: s.inserted_at)
+      |> limit(^limit)
+      |> Repo.all()
+      |> Enum.map(&source_summary/1)
+
+    json(conn, sources)
+  end
+
+  def source_detail(conn, %{"workspace_id" => ws, "id" => id}) do
+    with {source_id, ""} <- Integer.parse(id),
+         %RawSource{} = source <- Repo.get_by(RawSource, id: source_id, workspace_id: ws) do
+      json(conn, source_detail_payload(source))
+    else
+      _ -> conn |> put_status(404) |> json(%{error: "Source not found"})
+    end
+  end
+
   def lint(conn, %{"workspace_id" => ws}) do
     Oban.insert(Pipeline.Lint.new(%{"workspace_id" => ws}))
     json(conn, %{message: "Lint pass queued"})
+  end
+
+  defp parse_limit(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {parsed, ""} -> parsed |> max(1) |> min(500)
+      _ -> 100
+    end
+  end
+
+  defp parse_limit(_), do: 100
+
+  defp source_summary(%RawSource{} = source) do
+    content = source.content || ""
+
+    %{
+      id: source.id,
+      title: source.title,
+      source_type: source.source_type,
+      content_preview: String.slice(content, 0, 250),
+      ingested_at: source.ingested_at,
+      wiki_pages_touched: source.wiki_pages_touched || [],
+      word_count: word_count(content),
+      metadata: source.metadata || %{},
+      inserted_at: source.inserted_at,
+      updated_at: source.updated_at
+    }
+  end
+
+  defp source_detail_payload(%RawSource{} = source) do
+    source
+    |> source_summary()
+    |> Map.merge(%{
+      content: source.content || "",
+      checksum: source.checksum
+    })
+  end
+
+  defp word_count(content) do
+    content
+    |> String.split(~r/\s+/, trim: true)
+    |> length()
   end
 end

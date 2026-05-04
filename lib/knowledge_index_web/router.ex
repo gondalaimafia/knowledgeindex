@@ -12,6 +12,8 @@ defmodule KnowledgeIndexWeb.Router do
     post "/ingest", KIController, :ingest
     get "/search", KIController, :search
     get "/index", KIController, :index
+    get "/sources", KIController, :sources
+    get "/sources/:id", KIController, :source_detail
     post "/lint", KIController, :lint
     get "/health", KIController, :health
   end
