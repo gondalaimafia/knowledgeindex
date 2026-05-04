@@ -16,6 +16,7 @@ COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
 COPY config/config.exs config/${MIX_ENV}.exs config/
+COPY config/runtime.exs config/runtime.exs
 RUN mix deps.compile
 
 # Compile app
